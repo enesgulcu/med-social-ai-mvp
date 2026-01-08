@@ -1,0 +1,74 @@
+// Türkçe yorum: Referans medya upload endpoint'i.
+//  - Multipart/form-data kabul eder (files[])
+//  - Dosyaları .media klasörüne kaydeder, 1-5 arası dosya desteklenir
+//  - Yanıt: { mediaIds: [<id>], items: [{ id, filename, mime, size }] }
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../../lib/auth";
+import fs from "fs";
+import fsp from "fs/promises";
+import path from "path";
+import os from "os";
+
+function ensureMediaDir() {
+  const preferred = path.join(process.cwd(), ".media");
+  try {
+    if (!fs.existsSync(preferred)) fs.mkdirSync(preferred, { recursive: true });
+    return preferred;
+  } catch (_e) {
+    const fallback = path.join(os.tmpdir(), "social-agent-media");
+    if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true });
+    return fallback;
+  }
+}
+
+function genId() {
+  return `ref-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export async function POST(req) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return new Response(JSON.stringify({ error: "Yetkisiz" }), { status: 401 });
+  }
+
+  try {
+    const form = await req.formData();
+    const files = form.getAll("files");
+    if (!files || files.length === 0) {
+      return new Response(JSON.stringify({ error: "Dosya yüklenmedi" }), { status: 400 });
+    }
+
+    const limitedFiles = files.slice(0, 5);
+    const mediaDir = ensureMediaDir();
+
+    const mediaIds = [];
+    const items = [];
+
+    for (const file of limitedFiles) {
+      // Türkçe yorum: file, Next/Edge ortamında Blob benzeridir (name, type, arrayBuffer).
+      const id = genId();
+      const origName = file.name || "upload.bin";
+      const ext = path.extname(origName) || "";
+      const outPath = path.join(mediaDir, `${id}${ext}`);
+
+      const buf = Buffer.from(await file.arrayBuffer());
+      await fsp.writeFile(outPath, buf);
+
+      mediaIds.push(id);
+      items.push({
+        id,
+        filename: `${id}${ext}`,
+        mime: file.type || "application/octet-stream",
+        size: buf.length,
+      });
+    }
+
+    return Response.json({ ok: true, mediaIds, items });
+  } catch (error) {
+    console.error("Upload error:", error);
+    return new Response(JSON.stringify({ error: "Sunucu hatası", message: error.message }), { status: 500 });
+  }
+}
+
+

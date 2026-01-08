@@ -1,0 +1,92 @@
+// Prisma şeması MongoDB için; kullanıcı, profil ve içerik modelleri bu MVP'de temel veri yapısını oluşturur.
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  email        String         @unique
+  passwordHash String
+  name         String
+  role         String         @default("doctor")
+  createdAt    DateTime       @default(now())
+  profile      DoctorProfile?
+  contentDNA   ContentDNA[]
+  assets       Asset[]
+  usageLogs    UsageLog[]
+}
+
+model DoctorProfile {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id])
+  userId            String   @unique @db.ObjectId
+  specialty         String
+  targetAudience    String
+  tone              String
+  goals             Json
+  bio               String?
+  contentPreferences Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ContentDNA {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String   @db.ObjectId
+  normalizedTone String
+  guardrails     Json
+  topics         Json
+  styleGuide     Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Asset {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  user         User           @relation(fields: [userId], references: [id])
+  userId       String         @db.ObjectId
+  type         String
+  title        String
+  body         Json
+  cdnaSnapshot Json
+  status       String         @default("draft")
+  createdAt    DateTime       @default(now())
+  variants     AssetVariant[]
+  safetyChecks SafetyCheck[]
+}
+
+model AssetVariant {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  asset     Asset   @relation(fields: [assetId], references: [id])
+  assetId   String  @db.ObjectId
+  version   Int
+  payload   Json
+  createdAt DateTime @default(now())
+}
+
+model SafetyCheck {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  asset     Asset   @relation(fields: [assetId], references: [id])
+  assetId   String  @db.ObjectId
+  verdict   String
+  reasons   Json
+  createdAt DateTime @default(now())
+}
+
+model UsageLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @db.ObjectId
+  actionType  String
+  provider    String?
+  success     Boolean
+  durationMs  Int
+  errorCode   String?
+  createdAt   DateTime @default(now())
+}
