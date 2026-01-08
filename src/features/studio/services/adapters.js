@@ -138,7 +138,22 @@ export async function generateImage(input, format = "9:16") {
     const tone = contentDNA.normalizedTone || "sakin";
 
     // Türkçe yorum: Content DNA'dan prompt türetilir; ham prompt yok.
-    const prompt = `Stilize ama güven veren, abartısız, medikal temalı illüstratif kompozisyon. 
+    // Eğer enhancedPrompt varsa (revizyon için), onu kullan, yoksa normal prompt oluştur
+    
+    // ⚠️ EN ÖNEMLİ: KULLANICI GÖRSEL TASARIM TALEBİ - EN ÜST ÖNCELİK
+    // Bu kural, görsel üretiminin en başında ve en vurgulu şekilde belirlenmelidir.
+    // Diğer tüm kurallar bu kurala göre şekillenir.
+    const designRequestText = input?.visualDesignRequest?.trim()
+      ? `\n\n🚨🚨🚨 EN ÜST ÖNCELİK - KULLANICI GÖRSEL TASARIM TALEBİ 🚨🚨🚨\n\n"${input.visualDesignRequest.trim()}"\n\n⚠️⚠️⚠️ KRİTİK VE KESİN KURAL - MUTLAKA UYGULANMALI ⚠️⚠️⚠️\n\nBu kullanıcı talebi, görsel üretiminin EN ÖNEMLİ ve EN ÖNCELİKLİ kuralıdır.\n\n1. Bu talep, görselin stilini, içeriğini, kompozisyonunu ve tüm özelliklerini BELİRLEYEN ANA KURALDIR.\n2. Diğer tüm kurallar (ContentDNA, stil tercihleri, format vb.) bu talebe GÖRE şekillenir.\n3. Eğer bu talep ile diğer kurallar çelişirse, BU TALEP ÖNCELİKLİDİR.\n4. Kullanıcının her kelimesi, her talebi, her özelliği MUTLAKA ve TAM OLARAK uygulanmalıdır.\n5. Bu talep görselin ANA HATLARINI ve KURALLARINI belirler.\n\nÖRNEKLER:\n- Kullanıcı "yazı yazmasın" dediyse → Görselde HİÇ YAZI OLMAMALI, hiçbir metin, etiket veya yazı bulunmamalı.\n- Kullanıcı "realistik" dediyse → Görsel GERÇEKÇİ ve REALİSTİK olmalı, stilize veya illüstratif değil.\n- Kullanıcı "anatomik" dediyse → Görsel ANATOMİK detaylara sahip olmalı, anatomik doğruluk önemli.\n- Kullanıcı "vektörel" dediyse → Görsel VEKTÖREL stilinde olmalı.\n- Kullanıcı "minimalist" dediyse → Görsel MİNİMALİST olmalı, sade ve basit.\n\nBu talep, görsel üretiminin TEMELİ ve BAŞLANGICI olmalıdır. Önce bu talep uygulanır, sonra diğer kurallar bu talebe göre ayarlanır.\n\n`
+      : "";
+    
+    // Format bilgisi - daha açık
+    const formatText = format === "9:16" 
+      ? "Görsel DİKEY (9:16) formatında olmalı - Instagram Story/Reels için uygun, dikey kompozisyon."
+      : "Görsel YATAY (16:9) formatında olmalı - YouTube/Post için uygun, yatay kompozisyon.";
+    
+    // Base prompt - Görsel tasarım talebi EN BAŞTA olmalı
+    const basePrompt = `${designRequestText}Stilize ama güven veren, abartısız, medikal temalı illüstratif kompozisyon. 
 Tema: ${input?.topic || "sağlık bilgisi"}. 
 Branş: ${input?.specialty || "genel"}. 
 Ton: ${tone}. 
@@ -146,7 +161,47 @@ Görsel stili: ${visualStyle}.
 Tercih edilen etiketler: ${(preferredTags || []).join(", ")}. 
 Stil notları: ${styleNotes?.trim() || "yok"}. 
 Doktor portresi yok, klinik birebir görsel yok. 
-Oran: ${format}.`;
+${formatText}
+
+⚠️ YAZIM KURALLARI (ÇOK ÖNEMLİ):
+- Görsel üzerinde yazı varsa, yazılar TAM OLARAK doğru yazılmalı, yazım hatası OLMAMALI.
+- Türkçe karakterler (ı, ş, ğ, ü, ö, ç) doğru kullanılmalı.
+- Kelimeler eksik veya fazla harf içermemeli.
+- Yazılar düzgün, okunabilir ve net olmalı.
+- Yazılar kaymamalı, düzgün hizalı olmalı.
+- Eğer görselde yazı yoksa, bu kural uygulanmaz.`;
+
+    // Eğer enhancedPrompt varsa (revizyon için), onu kullan
+    // Ama enhancedPrompt'a görsel tasarım talebini EN BAŞA ekle
+    let prompt = input?.enhancedPrompt || basePrompt;
+    
+    // Eğer enhancedPrompt kullanılıyorsa, görsel tasarım talebini EN BAŞA ekle
+    if (input?.enhancedPrompt) {
+      // Görsel tasarım talebi EN BAŞTA olmalı - öncelikli
+      if (designRequestText && !prompt.includes("KULLANICI GÖRSEL TASARIM TALEBİ")) {
+        prompt = `${designRequestText}${prompt}`;
+      } else if (designRequestText) {
+        // Eğer zaten varsa ama başta değilse, başa taşı
+        prompt = prompt.replace(/🚨🚨🚨 EN ÜST ÖNCELİK.*?\n\n/g, ''); // Eski konumdan kaldır
+        prompt = `${designRequestText}${prompt}`; // Başa ekle
+      }
+      
+      // Format bilgisi yoksa ekle
+      if (!prompt.includes("formatında olmalı") && !prompt.includes("Aspect ratio")) {
+        prompt = `${prompt}\n\n${formatText}`;
+      }
+      
+      // Yazım kuralları yoksa ekle
+      if (!prompt.includes("YAZIM KURALLARI")) {
+        prompt += `\n\n⚠️ YAZIM KURALLARI (ÇOK ÖNEMLİ):
+- Görsel üzerinde yazı varsa, yazılar TAM OLARAK doğru yazılmalı, yazım hatası OLMAMALI.
+- Türkçe karakterler (ı, ş, ğ, ü, ö, ç) doğru kullanılmalı.
+- Kelimeler eksik veya fazla harf içermemeli.
+- Yazılar düzgün, okunabilir ve net olmalı.
+- Yazılar kaymamalı, düzgün hizalı olmalı.
+- Eğer görselde yazı yoksa, bu kural uygulanmaz.`;
+      }
+    }
 
     const result = await createImage({ prompt, format });
 

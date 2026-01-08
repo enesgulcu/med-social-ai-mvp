@@ -57,6 +57,7 @@ export default function AssetsPage() {
             options={[
               { value: "", label: "Tümü" },
               { value: "text", label: "Metin" },
+              { value: "imagePost", label: "Görsel Post" },
               { value: "image916", label: "Görsel (9:16)" },
               { value: "image169", label: "Görsel (16:9)" },
               { value: "audio", label: "Ses" },
@@ -89,6 +90,9 @@ export default function AssetsPage() {
           const body = asset.body || {};
           if (typeof body.text === "string") {
             preview = body.text;
+          } else if (asset.type === "imagePost" && typeof body.text === "object") {
+            // imagePost için text objesi içindeki metin
+            preview = body.text.text || body.text.hook || "";
           } else if (asset.type === "videoParts" && typeof body.text === "object") {
             preview = body.text.hook || body.text.text || "";
           } else if (typeof body.script === "string") {
@@ -107,11 +111,19 @@ export default function AssetsPage() {
             }
           }
           if (preview.length > 200) preview = preview.slice(0, 200) + "…";
+          
+          // Eğer preview yoksa, metadata'dan topic göster
+          if (!preview && body.metadata?.topic) {
+            preview = `Konu: ${body.metadata.topic}`;
+          }
 
           // Türkçe yorum: Kart görseli (varsa) - image, imagePost veya videoParts ilk sahne.
           const thumbUrl =
             body.imageUrl ||
             (body.image && body.image.imageUrl) ||
+            (asset.type === "imagePost" && body.image?.imageUrl) ||
+            (asset.type === "image916" && body.imageUrl) ||
+            (asset.type === "image169" && body.imageUrl) ||
             (asset.type === "videoParts" && Array.isArray(body.images) && body.images[0]?.url) ||
             null;
 

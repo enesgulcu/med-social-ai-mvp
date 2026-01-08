@@ -29,7 +29,10 @@ export async function createImage({ prompt, format = "9:16" }) {
 
   // Türkçe yorum: Format'a göre prompt'a aspect ratio bilgisi eklenir.
   const aspectRatio = format === "9:16" ? "9:16" : "16:9";
-  const enhancedPrompt = `${prompt}\n\nAspect ratio: ${aspectRatio}.`;
+  const formatInstruction = format === "9:16" 
+    ? "\n\n⚠️ FORMAT TALİMATI: Görsel MUTLAKA DİKEY (9:16) formatında olmalı. Yükseklik genişlikten uzun olmalı. Instagram Story/Reels formatı."
+    : "\n\n⚠️ FORMAT TALİMATI: Görsel MUTLAKA YATAY (16:9) formatında olmalı. Genişlik yükseklikten uzun olmalı. YouTube/Post formatı.";
+  const enhancedPrompt = `${prompt}${formatInstruction}\n\nAspect ratio: ${aspectRatio}.`;
 
   const requestBody = {
     contents: [

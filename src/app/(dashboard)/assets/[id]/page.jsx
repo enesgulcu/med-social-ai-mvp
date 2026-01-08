@@ -1,20 +1,27 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Card from "../../../../components/Card";
 import PageHeader from "../../../../components/PageHeader";
 import Button from "../../../../components/Button";
+import Textarea from "../../../../components/Textarea";
+import Modal from "../../../../components/Modal";
+import LoadingSpinner from "../../../../components/LoadingSpinner";
 import { useAssetStore } from "../../../../features/assets/store";
 
 // Türkçe yorum: Detay sayfası; asset bulunmazsa sade mesaj verir, crash etmez. Görsel/audio/video preview içerir.
 export default function AssetDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const { assets, upsertAsset } = useAssetStore();
   const [asset, setAsset] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [showDevMode, setShowDevMode] = useState(false);
+  const [reviseLoading, setReviseLoading] = useState(false);
+  const [showReviseModal, setShowReviseModal] = useState(false);
+  const [reviseRequest, setReviseRequest] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -55,6 +62,91 @@ export default function AssetDetailPage() {
       }
     } catch (_e) {
       setMessage("Bağlantı hatası");
+    }
+  };
+
+  // Alternatif görsel üret (AI otomatik alternatif üretir)
+  const handleGenerateAlternative = async () => {
+    if (!asset || (asset.type !== "image916" && asset.type !== "image169")) return;
+    
+    setReviseLoading(true);
+    setMessage("");
+    
+    try {
+      const res = await fetch("/api/studio/image-revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assetId: asset.id,
+          revisionType: "alternative", // Alternatif üret
+          format: asset.body?.metadata?.format || "9:16",
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        setMessage(errorData.message || errorData.error || "Alternatif görsel üretilemedi");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success && data.asset) {
+        // Yeni asset'e yönlendir
+        router.push(`/assets/${data.asset.id}`);
+      } else {
+        setMessage("Alternatif görsel üretilemedi");
+      }
+    } catch (error) {
+      console.error("Alternatif görsel hatası:", error);
+      setMessage("Bağlantı hatası");
+    } finally {
+      setReviseLoading(false);
+    }
+  };
+
+  // Revize et (kullanıcı yorumu ile)
+  const handleRevise = async () => {
+    if (!asset || (asset.type !== "image916" && asset.type !== "image169")) return;
+    if (!reviseRequest.trim()) {
+      setMessage("Lütfen revizyon talebinizi yazın");
+      return;
+    }
+    
+    setReviseLoading(true);
+    setMessage("");
+    
+    try {
+      const res = await fetch("/api/studio/image-revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assetId: asset.id,
+          revisionType: "revise", // Revize et
+          userRequest: reviseRequest.trim(),
+          format: asset.body?.metadata?.format || "9:16",
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        setMessage(errorData.message || errorData.error || "Revizyon başarısız");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success && data.asset) {
+        setShowReviseModal(false);
+        setReviseRequest("");
+        // Yeni asset'e yönlendir
+        router.push(`/assets/${data.asset.id}`);
+      } else {
+        setMessage("Revizyon başarısız");
+      }
+    } catch (error) {
+      console.error("Revizyon hatası:", error);
+      setMessage("Bağlantı hatası");
+    } finally {
+      setReviseLoading(false);
     }
   };
 
@@ -192,7 +284,29 @@ export default function AssetDetailPage() {
       {/* Türkçe yorum: Görsel preview; imageUrl varsa gösterilir, yoksa placeholder. */}
       {(asset.type === "image916" || asset.type === "image169") && (
         <Card className="space-y-3">
-          <h3 className="font-semibold text-slate-900">Görsel</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-slate-900">Görsel</h3>
+            {imageUrl && (
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={handleGenerateAlternative}
+                  disabled={reviseLoading}
+                  className="text-xs"
+                >
+                  {reviseLoading ? "Üretiliyor..." : "Alternatif Üret"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReviseModal(true)}
+                  disabled={reviseLoading}
+                  className="text-xs"
+                >
+                  Revize Et
+                </Button>
+              </div>
+            )}
+          </div>
           {imageUrl && (imageUrl.startsWith("data:") || imageUrl.startsWith("http")) ? (
             <img src={imageUrl} alt={asset.title} className="w-full rounded-md border border-slate-200" />
           ) : imageUrl ? (
@@ -214,6 +328,54 @@ export default function AssetDetailPage() {
           )}
         </Card>
       )}
+
+      {/* Revize Modal */}
+      <Modal
+        open={showReviseModal}
+        onClose={() => {
+          setShowReviseModal(false);
+          setReviseRequest("");
+        }}
+        title="Görseli Revize Et"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Resimde revize etmek istediğiniz ya da yeni içeriğin nasıl olmasını istiyorsanız onu yazın.
+          </p>
+          <Textarea
+            label="Revizyon Talebi"
+            placeholder="Örn: 'Daha parlak renkler kullan', 'Arka planı değiştir', 'Yazıları daha büyük yap'..."
+            value={reviseRequest}
+            onChange={(e) => setReviseRequest(e.target.value)}
+            rows={4}
+          />
+        </div>
+        <div className="mt-6 flex gap-2 justify-end">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowReviseModal(false);
+              setReviseRequest("");
+            }}
+            disabled={reviseLoading}
+          >
+            İptal
+          </Button>
+          <Button
+            onClick={handleRevise}
+            disabled={reviseLoading || !reviseRequest.trim()}
+          >
+            {reviseLoading ? (
+              <>
+                <LoadingSpinner size="sm" />
+                <span className="ml-2">Revize Ediliyor...</span>
+              </>
+            ) : (
+              "Revize Et"
+            )}
+          </Button>
+        </div>
+      </Modal>
 
       {/* Türkçe yorum: Audio player; audioUrl varsa gösterilir. */}
       {audioUrl && (

@@ -27,7 +27,7 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    const { topic, notes = "", format = "9:16", addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false } = body || {};
+    const { topic, notes = "", format = "9:16", addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, visualDesignRequest = "" } = body || {};
     const debugId = `api-videopost-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     console.log(`[studio][${debugId}][api] video-post request`, {
       userId: session.user.id,
@@ -50,17 +50,32 @@ export async function POST(req) {
       addDisclaimer,
       voice,
       includeDisclaimerInAudio,
+      visualDesignRequest: visualDesignRequest.trim(), // Görsel tasarım talebi
       // Türkçe yorum: Render endpoint'i oturum doğrulaması istediği için gelen isteğin Cookie bilgisini forward ediyoruz.
       requestCookie: req.headers.get("cookie") || "",
     });
 
-    // Türkçe yorum: Asset kaydı.
+    // Türkçe yorum: Asset kaydı - body'ye metadata ekle
+    const bodyWithMetadata = {
+      ...result.asset.body,
+      metadata: {
+        topic,
+        notes,
+        format,
+        addDisclaimer,
+        voice,
+        includeDisclaimerInAudio,
+        visualDesignRequest: visualDesignRequest || undefined,
+        createdAt: new Date().toISOString(),
+      },
+    };
+
     let asset = await prisma.asset.create({
       data: {
         userId: session.user.id,
         type: result.asset.type,
         title: result.asset.title,
-        body: result.asset.body,
+        body: bodyWithMetadata,
         cdnaSnapshot: result.asset.cdnaSnapshot,
         status: result.success ? "ready" : "error",
         safetyChecks: result.asset.safety

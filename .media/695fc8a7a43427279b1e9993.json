@@ -1,0 +1,20 @@
+{
+  "assetId": "695fc8a7a43427279b1e9993",
+  "userId": "695e2af72c881749a109fed3",
+  "type": "videoParts",
+  "savedAt": "2026-01-08T15:09:29.286Z",
+  "params": {
+    "topic": "\"Boğaz enfeksiyonlarına karşı korunma yöntemleri\"",
+    "notes": "Açıklama: Boğaz enfeksiyonları, genellikle viral veya bakteriyel kaynaklıdır. Bu enfeksiyonlardan korunmanın en etkili yollarından biri, düzenli el yıkama ve hijyen kurallarına harfiyen uymaktır. Ellerinizi sık sık yıkarak, enfeksiyonların yayılmasını önleyebilirsiniz.. Amaç: Bilgilendirme. Hedef kitle: 20-80",
+    "format": "9:16",
+    "addDisclaimer": true,
+    "voice": "alloy",
+    "includeDisclaimerInAudio": false
+  },
+  "format": "9:16",
+  "duration": 6,
+  "counts": {
+    "images": 3,
+    "captions": 2
+  }
+}

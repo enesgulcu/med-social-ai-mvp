@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../lib/auth";
+import prisma from "../../lib/prisma";
 import Topbar from "./_components/Topbar";
 
 // Türkçe yorum: Dashboard layout oturum kontrolü yapar; sidebar ve üst bar ile temel iskeleti sağlar, alt sayfalar bağımsızdır.
@@ -12,9 +13,16 @@ export default async function DashboardLayout({ children }) {
     redirect("/login");
   }
 
+  // Onboarding durumunu kontrol et
+  const profile = await prisma.doctorProfile.findUnique({
+    where: { userId: session.user.id },
+  });
+
+  const hasCompletedOnboarding = profile && profile.specialty && profile.targetAudience && profile.tone;
+
   const navItems = [
     { href: "/dashboard", label: "Genel" },
-    { href: "/onboarding", label: "Onboarding" },
+    { href: "/onboarding", label: "Onboarding", badge: hasCompletedOnboarding ? "Hazır" : null },
     { href: "/studio", label: "Studio" },
     { href: "/assets", label: "İçerikler" },
     { href: "/settings", label: "Ayarlar" },
@@ -34,10 +42,18 @@ export default async function DashboardLayout({ children }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
+                  className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
                 >
-                  <span>•</span>
-                  <span>{item.label}</span>
+                  <div className="flex items-center gap-2">
+                    <span>•</span>
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>

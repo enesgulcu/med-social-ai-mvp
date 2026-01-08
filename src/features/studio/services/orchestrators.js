@@ -79,7 +79,7 @@ async function fetchContentDNA(userId) {
  * @param {boolean} [params.addDisclaimer=true] - Disclaimer ekle
  * @returns {Promise<{success: boolean, asset?: Object, errors?: Array, usedMock?: boolean}>}
  */
-export async function createImagePost({ userId, topic, notes = "", format, addDisclaimer = true }) {
+export async function createImagePost({ userId, topic, notes = "", format, addDisclaimer = true, enhancedPrompt = null, visualDesignRequest = "" }) {
   const debugId = genDebugId("imgpost");
   const startTime = Date.now();
   const errors = [];
@@ -152,6 +152,8 @@ export async function createImagePost({ userId, topic, notes = "", format, addDi
           topic,
           specialty: notes || "Genel",
           contentDNA,
+          enhancedPrompt: enhancedPrompt || undefined, // Revizyon için özel prompt
+          visualDesignRequest: visualDesignRequest || undefined, // Kullanıcının görsel tasarım talebi
         },
         format
       );
@@ -237,7 +239,7 @@ export async function createImagePost({ userId, topic, notes = "", format, addDi
  * @param {boolean} [params.addDisclaimer=true] - Disclaimer ekle
  * @returns {Promise<{success: boolean, asset?: Object, errors?: Array, usedMock?: boolean}>}
  */
-export async function createVideoPost({ userId, topic, notes = "", format, addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, requestCookie = "" }) {
+export async function createVideoPost({ userId, topic, notes = "", format, addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, requestCookie = "", visualDesignRequest = "" }) {
   const debugId = genDebugId("videopost");
   const startTime = Date.now();
   const errors = [];
@@ -307,73 +309,163 @@ export async function createVideoPost({ userId, topic, notes = "", format, addDi
 
     const images = [];
     const imageStart = Date.now();
+    const MAX_RETRIES = 3; // Her görsel için maksimum 3 deneme
+    
     for (let i = 0; i < imageCount; i++) {
-      try {
-        const imageResult = await generateImage(
-          {
-            topic: `${topic} - Sahne ${i + 1}`,
-            specialty: notes || "Genel",
-            contentDNA,
-          },
-          format
-        );
-        usedMock = usedMock || imageResult.usedMock;
-        images.push({
-          url: imageResult.body?.imageUrl,
-          prompt: imageResult.body?.usedPrompt || "",
-          sceneIndex: i + 1,
-          meta: imageResult.body?.meta || {},
-        });
-        await logUsage(
-          userId,
-          "image",
-          imageResult.usedMock ? "mock" : "gemini",
-          !!imageResult.body?.imageUrl,
-          Date.now() - imageStart
-        );
-        logDebug(debugId, `image_${i + 1}`, { ok: !!imageResult.body?.imageUrl, usedMock: !!imageResult.usedMock });
-      } catch (error) {
-        errors.push({ step: `Görsel ${i + 1} üretimi`, message: error.message || "Görsel üretilemedi" });
-        logDebug(debugId, `image_${i + 1}`, { ok: false, message: error?.message });
-        images.push({
-          url: null,
-          prompt: `Görsel üretilemedi: ${topic} - Sahne ${i + 1}`,
-          sceneIndex: i + 1,
-          fallback: true,
-        });
+      let imageResult = null;
+      let retryCount = 0;
+      let success = false;
+      
+      // Her sahne için farklı odak noktası belirle
+      // scriptSentences'den ilgili cümleyi al veya farklı bir açı vurgula
+      const sceneSentence = scriptSentences[i]?.text || scriptSentences[Math.min(i, scriptSentences.length - 1)]?.text || "";
+      const sceneFocus = sceneSentence 
+        ? `${topic} - ${sceneSentence.substring(0, 50)}${sceneSentence.length > 50 ? '...' : ''}`
+        : `${topic} - Sahne ${i + 1}`;
+      
+      // Her sahne için farklı bir perspektif veya odak noktası
+      const sceneVariations = [
+        "detaylı ve yakın çekim odaklı",
+        "geniş açı ve bütünsel bakış açılı",
+        "konsept ve sembolik temsil odaklı",
+        "pratik uygulama ve adım adım odaklı",
+        "duygusal ve empatik yaklaşımlı",
+        "bilimsel ve teknik detay odaklı",
+      ];
+      const scenePerspective = sceneVariations[i % sceneVariations.length];
+      
+      // Retry mekanizması ile görsel üretimi
+      while (retryCount < MAX_RETRIES && !success) {
+        try {
+          imageResult = await generateImage(
+            {
+              topic: sceneFocus,
+              specialty: notes || "Genel",
+              contentDNA,
+              visualDesignRequest: visualDesignRequest 
+                ? `${visualDesignRequest}. Bu sahne ${scenePerspective} olmalı. ${sceneSentence ? `Sahne içeriği: "${sceneSentence}"` : ''}`
+                : `Bu sahne ${scenePerspective} olmalı. ${sceneSentence ? `Sahne içeriği: "${sceneSentence}"` : ''}`,
+            },
+            format
+          );
+          
+          // Görsel başarıyla üretildi mi kontrol et
+          if (imageResult.body?.imageUrl) {
+            success = true;
+            usedMock = usedMock || imageResult.usedMock;
+            images.push({
+              url: imageResult.body.imageUrl,
+              prompt: imageResult.body?.usedPrompt || "",
+              sceneIndex: i + 1,
+              meta: imageResult.body?.meta || {},
+            });
+            await logUsage(
+              userId,
+              "image",
+              imageResult.usedMock ? "mock" : "gemini",
+              true,
+              Date.now() - imageStart
+            );
+            logDebug(debugId, `image_${i + 1}`, { ok: true, usedMock: !!imageResult.usedMock, retryCount });
+          } else {
+            // Görsel üretilemedi, retry yap
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+              console.log(`[studio][${debugId}] Görsel ${i + 1} üretilemedi, ${retryCount}/${MAX_RETRIES} deneme yapılıyor...`);
+              await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
+            }
+          }
+        } catch (error) {
+          retryCount++;
+          if (retryCount >= MAX_RETRIES) {
+            errors.push({ step: `Görsel ${i + 1} üretimi`, message: error.message || "Görsel üretilemedi (3 deneme başarısız)" });
+            logDebug(debugId, `image_${i + 1}`, { ok: false, error: error.message, retryCount });
+          } else {
+            console.log(`[studio][${debugId}] Görsel ${i + 1} üretim hatası, ${retryCount}/${MAX_RETRIES} deneme yapılıyor...`, error.message);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
+          }
+        }
+      }
+      
+      // Eğer tüm denemeler başarısız olduysa
+      if (!success) {
+        errors.push({ step: `Görsel ${i + 1} üretimi`, message: `Görsel üretilemedi (${MAX_RETRIES} deneme başarısız)` });
+        logDebug(debugId, `image_${i + 1}`, { ok: false, retryCount: MAX_RETRIES });
+        // Boş görsel ekleme - sadece hata kaydet
       }
     }
 
-    // 6) Ses üretimi
+    // 6) Ses üretimi - Retry mekanizması ile
     const audioStart = Date.now();
     let audioResult;
-    try {
-      // Türkçe yorum: voiceScript varsa onu kullan (TTS için optimize edilmiş), yoksa finalText.
-      const textForAudio = textResult.body?.voiceScript || finalText;
-      audioResult = await generateAudio({
-        text: finalText,
-        voiceScript: textForAudio,
-        topic,
-        contentDNA,
-        voice, // Türkçe yorum: Kullanıcının seçtiği voice.
-        includeDisclaimer: includeDisclaimerInAudio, // Türkçe yorum: Disclaimer seslendirilsin mi?
-        disclaimer: addDisclaimer && textResult.body?.disclaimer ? textResult.body.disclaimer : undefined,
-      });
-      usedMock = usedMock || audioResult.usedMock;
-      await logUsage(userId, "audio", audioResult.usedMock ? "mock" : "openai", !!audioResult.body?.audioUrl, Date.now() - audioStart);
-      logDebug(debugId, "audio", { ok: !!audioResult.body?.audioUrl, usedMock: !!audioResult.usedMock, ms: Date.now() - audioStart, voice });
-    } catch (error) {
-      errors.push({ step: "Ses üretimi", message: error.message || "Ses üretilemedi" });
-      await logUsage(userId, "audio", "unknown", false, Date.now() - audioStart, "AUDIO_GEN_ERROR");
-      logDebug(debugId, "audio", { ok: false, ms: Date.now() - audioStart, message: error?.message });
-      audioResult = {
-        body: {
-          audioUrl: null,
-          transcript: finalText,
-          fallback: true,
-        },
-        usedMock: true,
-      };
+    const MAX_AUDIO_RETRIES = 3; // Maksimum 3 deneme
+    let audioRetryCount = 0;
+    let audioSuccess = false;
+    
+    // Türkçe yorum: voiceScript varsa onu kullan (TTS için optimize edilmiş), yoksa finalText.
+    const textForAudio = textResult.body?.voiceScript || finalText;
+    
+    while (audioRetryCount < MAX_AUDIO_RETRIES && !audioSuccess) {
+      try {
+        audioResult = await generateAudio({
+          text: finalText,
+          voiceScript: textForAudio,
+          topic,
+          contentDNA,
+          voice, // Türkçe yorum: Kullanıcının seçtiği voice.
+          includeDisclaimer: includeDisclaimerInAudio, // Türkçe yorum: Disclaimer seslendirilsin mi?
+          disclaimer: addDisclaimer && textResult.body?.disclaimer ? textResult.body.disclaimer : undefined,
+        });
+        
+        // Ses başarıyla üretildi mi kontrol et
+        if (audioResult.body?.audioUrl) {
+          audioSuccess = true;
+          usedMock = usedMock || audioResult.usedMock;
+          await logUsage(userId, "audio", audioResult.usedMock ? "mock" : "openai", true, Date.now() - audioStart);
+          logDebug(debugId, "audio", { ok: true, usedMock: !!audioResult.usedMock, ms: Date.now() - audioStart, voice, retryCount: audioRetryCount });
+        } else {
+          // Ses üretilemedi, retry yap
+          audioRetryCount++;
+          if (audioRetryCount < MAX_AUDIO_RETRIES) {
+            console.log(`[studio][${debugId}] Ses üretilemedi, ${audioRetryCount}/${MAX_AUDIO_RETRIES} deneme yapılıyor...`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
+          }
+        }
+      } catch (error) {
+        audioRetryCount++;
+        if (audioRetryCount >= MAX_AUDIO_RETRIES) {
+          errors.push({ step: "Ses üretimi", message: error.message || `Ses üretilemedi (${MAX_AUDIO_RETRIES} deneme başarısız)` });
+          await logUsage(userId, "audio", "unknown", false, Date.now() - audioStart, "AUDIO_GEN_ERROR");
+          logDebug(debugId, "audio", { ok: false, ms: Date.now() - audioStart, message: error?.message, retryCount: audioRetryCount });
+          audioResult = {
+            body: {
+              audioUrl: null,
+              transcript: finalText,
+              fallback: true,
+            },
+            usedMock: true,
+          };
+        } else {
+          console.log(`[studio][${debugId}] Ses üretim hatası, ${audioRetryCount}/${MAX_AUDIO_RETRIES} deneme yapılıyor...`, error.message);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
+        }
+      }
+    }
+    
+    // Eğer tüm denemeler başarısız olduysa
+    if (!audioSuccess) {
+      errors.push({ step: "Ses üretimi", message: `Ses üretilemedi (${MAX_AUDIO_RETRIES} deneme başarısız)` });
+      logDebug(debugId, "audio", { ok: false, retryCount: MAX_AUDIO_RETRIES });
+      if (!audioResult) {
+        audioResult = {
+          body: {
+            audioUrl: null,
+            transcript: finalText,
+            fallback: true,
+          },
+          usedMock: true,
+        };
+      }
     }
 
     // 7) Video timeline hesapla (adapters.generateVideo ile)

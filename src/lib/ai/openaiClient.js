@@ -21,6 +21,7 @@ export async function callOpenAIChat({ system, user, temperature = 0.7, maxToken
     };
   }
 
+  // Ucuz model kullan (maliyet optimizasyonu için)
   const model = process.env.OPENAI_TEXT_MODEL || "gpt-4o-mini";
   const timeout = parseInt(process.env.OPENAI_TIMEOUT_MS || "30000", 10);
 

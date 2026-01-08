@@ -21,15 +21,38 @@ export async function POST(req) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return new Response(JSON.stringify({ error: "Kullanıcı bulunamadı" }), { status: 404 });
 
-    // Profil kaydı (upsert)
+    // Profil kaydı (upsert) - AI destekli alanları da kaydet
+    const profileData = {
+      specialty: parsed.data.specialty,
+      targetAudience: parsed.data.targetAudience,
+      tone: parsed.data.tone,
+      goals: parsed.data.goals,
+      contentPreferences: {
+        toneDetails: parsed.data.toneDetails || {},
+        visualPreferences: parsed.data.visualPreferences || {},
+      },
+    };
+
     await prisma.doctorProfile.upsert({
       where: { userId: user.id },
-      create: { ...parsed.data, goals: parsed.data.goals, userId: user.id },
-      update: { ...parsed.data, goals: parsed.data.goals },
+      create: { ...profileData, userId: user.id },
+      update: profileData,
     });
 
     // Türkçe yorum: Content DNA v2 üretimi (AI destekli + fallback).
+    // Visual preferences'i de styleGuide'a ekle
     const cdna = await createOrUpdateContentDNAFromOnboarding(parsed.data);
+    
+    // Visual preferences'i styleGuide'a ekle
+    if (parsed.data.visualPreferences) {
+      cdna.styleGuide = {
+        ...cdna.styleGuide,
+        visualStyle: parsed.data.visualPreferences.visualStyle || cdna.styleGuide?.visualStyle,
+        visualTags: parsed.data.visualPreferences.tags || [],
+        visualSummary: parsed.data.visualPreferences.summary || "",
+      };
+    }
+
     const existing = await prisma.contentDNA.findFirst({ where: { userId: user.id } });
     if (existing) {
       await prisma.contentDNA.update({ where: { id: existing.id }, data: cdna });

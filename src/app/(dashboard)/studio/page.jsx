@@ -8,29 +8,52 @@ import PageHeader from "../../../components/PageHeader";
 import Input from "../../../components/Input";
 import Textarea from "../../../components/Textarea";
 import Select from "../../../components/Select";
+import LoadingSpinner from "../../../components/LoadingSpinner";
+import AISuggestionModal from "../../../components/AISuggestionModal";
 import { useAssetStore } from "../../../features/assets/store";
 
-// Türkçe yorum: Studio sayfası; sadeleştirilmiş UX ile 2 ana aksiyon: Görsel Post ve Video Post.
+// Türkçe yorum: Studio sayfası; 5 input alanı ile içerik üretimi, AI önerileri ile desteklenir.
 export default function StudioPage() {
   const { data: session } = useSession();
+  const { upsertAsset } = useAssetStore();
+
+  // Form state'leri
   const [topic, setTopic] = useState("");
-  const [notes, setNotes] = useState("");
+  const [description, setDescription] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
+
+  // Format ve diğer ayarlar
   const [format, setFormat] = useState("9:16");
-  const [target, setTarget] = useState("bilgilendirme");
   const [voice, setVoice] = useState("alloy");
   const [includeDisclaimerInAudio, setIncludeDisclaimerInAudio] = useState(false);
+  const [visualDesignRequest, setVisualDesignRequest] = useState(""); // Görsel tasarım talebi
+
+  // AI önerileri state'leri
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiModalField, setAiModalField] = useState(null);
+  const [aiSuggestions, setAiSuggestions] = useState([]); // Sadece en son üretilen öneriler
+  const [aiLoading, setAiLoading] = useState(false);
+  const [allSuggestions, setAllSuggestions] = useState([]); // Tüm öneriler (yeni öneriler üstte)
+  // Field bazında önerileri sakla (her field için ayrı)
+  const [fieldSuggestions, setFieldSuggestions] = useState({
+    topic: [],
+    description: [],
+    purpose: [],
+    targetAudience: [],
+  });
+
+  // İçerik üretimi state'leri
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState([]);
   const [result, setResult] = useState(null);
   const [errors, setErrors] = useState([]);
   const [usedMock, setUsedMock] = useState(false);
-  const [devMode, setDevMode] = useState(false);
-  const { upsertAsset } = useAssetStore();
   const [ffmpegInfo, setFfmpegInfo] = useState({ ready: null, mode: null });
   const [ffmpegAlert, setFfmpegAlert] = useState(false);
   const [lastDebugId, setLastDebugId] = useState("");
 
-  // Türkçe yorum: FFmpeg durumu DEV MODE için okunur; buton kilitlemek için kullanılmaz.
+  // FFmpeg durumu kontrolü
   useEffect(() => {
     const check = async () => {
       try {
@@ -44,7 +67,286 @@ export default function StudioPage() {
     check();
   }, []);
 
-  // Türkçe yorum: Görsel Post hazırlama.
+  // AI önerileri üret
+  const generateAISuggestions = async (field, generateNew = false, userRequest = "") => {
+    setAiLoading(true);
+    setAiModalField(field);
+    
+    // İlk kez açılıyorsa modal'ı aç, yeni örnekler için zaten açık
+    if (!generateNew) {
+      setAiModalOpen(true);
+      setAllSuggestions([]); // İlk açılışta tüm önerileri temizle
+    }
+
+    try {
+      const otherFields = {
+        topic,
+        description,
+        purpose,
+        targetAudience,
+      };
+
+      // Yeni örnekler üretiliyorsa, tüm daha önce gösterilen önerileri excludeSuggestions olarak gönder
+      const excludeSuggestions = generateNew ? allSuggestions : [];
+      const generationIndex = Math.floor(excludeSuggestions.length / 5);
+
+      const res = await fetch("/api/studio/ai-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field,
+          currentValue: otherFields[field] || "",
+          otherFields,
+          excludeSuggestions, // Daha önce gösterilen önerileri hariç tut
+          generationIndex, // Kaçıncı kez yeni öneri üretiliyor
+          userRequest, // Kullanıcının özel talebi
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("AI öneri API hatası:", res.status, errorData);
+        // Kullanıcıya hata mesajı göster
+        alert(errorData.message || errorData.error || "AI önerileri alınamadı. Lütfen daha sonra tekrar deneyin.");
+        throw new Error(errorData.error || "AI önerileri alınamadı");
+      }
+
+      const data = await res.json();
+      console.log("AI öneri response:", data); // Debug
+      
+      // Eğer hata varsa
+      if (data.error) {
+        console.error("AI öneri hatası:", data);
+        alert(data.message || data.error || "AI önerileri alınamadı. Lütfen daha sonra tekrar deneyin.");
+        setAiSuggestions([]);
+        return;
+      }
+      
+      if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+        setAiSuggestions(data.suggestions);
+        // Yeni önerileri üste ekle (yeni öneriler üstte, eskiler aşağıda)
+        if (generateNew) {
+          // Yeni önerileri üste ekle
+          setAllSuggestions(prev => {
+            const combined = [...data.suggestions, ...prev];
+            console.log("All suggestions updated (new on top):", combined); // Debug
+            return combined;
+          });
+        } else {
+          // İlk açılışta sadece yeni önerileri göster
+          setAllSuggestions(data.suggestions);
+          console.log("All suggestions set (first time):", data.suggestions); // Debug
+        }
+        
+        // Field bazında önerileri sakla
+        setFieldSuggestions(prev => ({
+          ...prev,
+          [field]: generateNew 
+            ? [...data.suggestions, ...(prev[field] || [])]
+            : data.suggestions,
+        }));
+      } else {
+        console.warn("AI önerileri boş veya geçersiz:", data);
+        setAiSuggestions([]);
+        alert("AI'dan öneri alınamadı. Lütfen tekrar deneyin.");
+      }
+    } catch (error) {
+      console.error("AI öneri hatası:", error);
+      // Fallback: En azından boş array göster, modal açık kalsın
+      setAiSuggestions([]);
+      // Kullanıcıya hata mesajı göster (opsiyonel)
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // AI önerisini seç
+  const handleAISelect = (suggestion) => {
+    const fieldSetters = {
+      topic: setTopic,
+      description: setDescription,
+      purpose: setPurpose,
+      targetAudience: setTargetAudience,
+    };
+
+    const setter = fieldSetters[aiModalField];
+    if (setter) {
+      setter(suggestion);
+    }
+    setAiModalOpen(false);
+  };
+
+  // Yeni AI önerileri üret
+  const handleGenerateNew = () => {
+    // Tüm daha önce gösterilen önerileri excludeSuggestions olarak gönder
+    // Yeni öneriler üret - allSuggestions'ı kullan
+    generateAISuggestionsWithExclude(aiModalField, allSuggestions);
+  };
+
+  // Özel talep ile yeni AI önerileri üret
+  const handleGenerateWithRequest = (userRequest) => {
+    // Tüm daha önce gösterilen önerileri excludeSuggestions olarak gönder
+    // Kullanıcının özel talebi ile yeni öneriler üret
+    generateAISuggestionsWithExclude(aiModalField, allSuggestions, userRequest);
+  };
+
+  // excludeSuggestions ile AI önerileri üret
+  const generateAISuggestionsWithExclude = async (field, excludeList = [], userRequest = "") => {
+    setAiLoading(true);
+
+    try {
+      const otherFields = {
+        topic,
+        description,
+        purpose,
+        targetAudience,
+      };
+
+      console.log("Generating new suggestions, excluding:", excludeList.length, "items:", excludeList); // Debug
+      if (userRequest) {
+        console.log("User request:", userRequest); // Debug
+      }
+
+      const generationIndex = Math.floor(excludeList.length / 5);
+
+      const res = await fetch("/api/studio/ai-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field,
+          currentValue: otherFields[field] || "",
+          otherFields,
+          excludeSuggestions: excludeList, // Tüm daha önce gösterilen önerileri hariç tut
+          generationIndex, // Kaçıncı kez yeni öneri üretiliyor
+          userRequest, // Kullanıcının özel talebi
+        }),
+      });
+      
+      console.log("API request sent with excludeSuggestions:", excludeList.length, "items"); // Debug
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("AI öneri API hatası:", res.status, errorData);
+        // Kullanıcıya hata mesajı göster
+        alert(errorData.message || errorData.error || "AI önerileri alınamadı. Lütfen daha sonra tekrar deneyin.");
+        throw new Error(errorData.error || "AI önerileri alınamadı");
+      }
+
+      const data = await res.json();
+      console.log("AI öneri response (new):", data); // Debug
+      
+      // Eğer hata varsa
+      if (data.error) {
+        console.error("AI öneri hatası:", data);
+        alert(data.message || data.error || "AI önerileri alınamadı. Lütfen daha sonra tekrar deneyin.");
+        setAiSuggestions([]);
+        return;
+      }
+      
+      if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+        setAiSuggestions(data.suggestions);
+        // Yeni önerileri üste ekle (yeni öneriler üstte, eskiler aşağıda)
+        setAllSuggestions(prev => {
+          const combined = [...data.suggestions, ...prev];
+          console.log("All suggestions updated (new on top):", combined); // Debug
+          return combined;
+        });
+        
+        // Field bazında önerileri sakla
+        setFieldSuggestions(prev => ({
+          ...prev,
+          [field]: [...data.suggestions, ...(prev[field] || [])],
+        }));
+      } else {
+        console.warn("AI önerileri boş veya geçersiz:", data);
+        setAiSuggestions([]);
+        alert("AI'dan öneri alınamadı. Lütfen tekrar deneyin.");
+      }
+    } catch (error) {
+      console.error("AI öneri hatası:", error);
+      setAiSuggestions([]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Input alanı render helper
+  const renderInputWithAI = (field, label, placeholder, value, setValue, type = "input", rows = 3) => {
+    const Component = type === "textarea" ? Textarea : Input;
+    
+    // AI butonunu pasif yapma mantığı
+    const isAiButtonDisabled = () => {
+      if (loading || aiLoading) return true;
+      
+      // "description" ve "purpose" için topic en az 3 karakter olmalı
+      if ((field === "description" || field === "purpose") && (!topic || topic.trim().length < 3)) {
+        return true;
+      }
+      
+      return false;
+    };
+    
+    const hasPreviousSuggestions = fieldSuggestions[field] && fieldSuggestions[field].length > 0;
+    
+    // Üretilenleri gör butonuna tıklandığında
+    const handleViewPrevious = () => {
+      setAiModalField(field);
+      setAllSuggestions(fieldSuggestions[field] || []);
+      setAiModalOpen(true);
+    };
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-slate-700">{label}</label>
+          <div className="flex items-center gap-2">
+            {hasPreviousSuggestions && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleViewPrevious}
+                disabled={loading || aiLoading}
+                className="text-xs px-2 py-1"
+              >
+                Üretilenleri Gör ({fieldSuggestions[field].length})
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => generateAISuggestions(field)}
+              disabled={isAiButtonDisabled()}
+              className="text-xs px-2 py-1"
+              title={
+                (field === "description" || field === "purpose") && (!topic || topic.trim().length < 3)
+                  ? "Önce konu başlığını girin (en az 3 karakter)"
+                  : ""
+              }
+            >
+              {aiLoading && aiModalField === field ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span className="ml-1">Üretiliyor...</span>
+                </>
+              ) : (
+                "AI ile üret"
+              )}
+            </Button>
+          </div>
+        </div>
+        <Component
+          label=""
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={loading}
+          rows={type === "textarea" ? rows : undefined}
+        />
+      </div>
+    );
+  };
+
+  // Görsel Post hazırlama
   const handleCreateImagePost = async () => {
     if (!topic.trim()) {
       setErrors([{ step: "Giriş", message: "Konu gerekli" }]);
@@ -64,7 +366,7 @@ export default function StudioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
-          notes,
+          notes: `${description ? `Açıklama: ${description}. ` : ""}Amaç: ${purpose || "Bilgilendirme"}. Hedef kitle: ${targetAudience || "Genel"}`,
           format,
           addDisclaimer: true,
           voice,
@@ -94,7 +396,7 @@ export default function StudioPage() {
     }
   };
 
-  // Türkçe yorum: Video Post hazırlama.
+  // Video Post hazırlama
   const handleCreateVideoPost = async () => {
     if (!topic.trim()) {
       setErrors([{ step: "Giriş", message: "Konu gerekli" }]);
@@ -115,7 +417,7 @@ export default function StudioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
-          notes,
+          notes: `${description ? `Açıklama: ${description}. ` : ""}Amaç: ${purpose || "Bilgilendirme"}. Hedef kitle: ${targetAudience || "Genel"}`,
           format,
           addDisclaimer: true,
           voice,
@@ -136,10 +438,8 @@ export default function StudioPage() {
       setLastDebugId(data.debugId || "");
       upsertAsset(data.asset);
 
-      // Türkçe yorum: Başarı sadece backend success:true ise success sayılır.
       setProgress([{ step: data.success ? "Tamamlandı" : "Başarısız", status: data.success ? "success" : "error" }]);
 
-      // Türkçe yorum: FFmpeg yoksa backend hata döndürür; kullanıcıya net uyarı gösterilir.
       const hasFfmpegNotFound =
         Array.isArray(data.errors) &&
         data.errors.some(
@@ -162,26 +462,61 @@ export default function StudioPage() {
     <div className="space-y-6">
       <PageHeader title="Studio" subtitle="AI destekli içerik üretim paneli." />
 
-      {/* Türkçe yorum: Ana form - konu, not, format, hedef. */}
+      {/* Ana form - 5 input alanı */}
       <Card className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Input
-            label="Konu"
-            placeholder="Örn: Hipertansiyon kontrolü"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            disabled={loading}
-          />
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">İçerik Bilgileri</h3>
+        
+        {renderInputWithAI(
+          "topic",
+          "1. Konu *",
+          "Örn: Hipertansiyon kontrolü",
+          topic,
+          setTopic
+        )}
+
+        {renderInputWithAI(
+          "description",
+          "2. Konunun açıklaması",
+          "Konu hakkında kısa açıklama",
+          description,
+          setDescription,
+          "textarea",
+          3
+        )}
+
+        {renderInputWithAI(
+          "purpose",
+          "3. İçeriğin amacı",
+          "Örn: Bilgilendirme, Hasta eğitimi",
+          purpose,
+          setPurpose
+        )}
+
+        {renderInputWithAI(
+          "targetAudience",
+          "4. İçeriğin hedef kitlesi",
+          "Örn: 30-50 yaş hipertansiyon hastaları",
+          targetAudience,
+          setTargetAudience
+        )}
+      </Card>
+
+      {/* Format ve ayarlar */}
+        <Card className="space-y-4">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Görsel Tasarım</h3>
           <Textarea
-            label="Not / Branş"
-            placeholder="Kısa not veya branş bilgisi"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            label="Görsel tasarımınız nasıl olsun? (Opsiyonel)"
+            placeholder="Örn: Vektörel bir görsel olsun, görselde yazı yazmasın, görsel gerçekçi realistik olsun, minimalist olsun, renkli olsun..."
+            value={visualDesignRequest}
+            onChange={(e) => setVisualDesignRequest(e.target.value)}
             disabled={loading}
+            rows={3}
           />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        </Card>
+
+        <Card className="space-y-4">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Format ve Ayarlar</h3>
+          <div className="grid gap-4 md:grid-cols-2">
           <Select
             label="Format"
             value={format}
@@ -192,19 +527,6 @@ export default function StudioPage() {
               { value: "16:9", label: "Yatay (16:9) - YouTube/Post" },
             ]}
           />
-          <Select
-            label="Hedef (Opsiyonel)"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            disabled={loading}
-            options={[
-              { value: "bilgilendirme", label: "Bilgilendirme" },
-              { value: "güven", label: "Güven oluşturma" },
-              { value: "hasta-kazanımı", label: "Hasta kazanımı" },
-            ]}
-          />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
           <Select
             label="Ses Seçeneği (Video Post için)"
             value={voice}
@@ -219,30 +541,30 @@ export default function StudioPage() {
               { value: "shimmer", label: "Shimmer (Kadın, Yumuşak)" },
             ]}
           />
-          <div className="flex items-center gap-2 pt-6">
-            <input
-              type="checkbox"
-              id="includeDisclaimerInAudio"
-              checked={includeDisclaimerInAudio}
-              onChange={(e) => setIncludeDisclaimerInAudio(e.target.checked)}
-              disabled={loading}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label htmlFor="includeDisclaimerInAudio" className="text-sm text-slate-700">
-              Disclaimer seslendirilsin (Video Post)
-            </label>
-          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="includeDisclaimerInAudio"
+            checked={includeDisclaimerInAudio}
+            onChange={(e) => setIncludeDisclaimerInAudio(e.target.checked)}
+            disabled={loading}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <label htmlFor="includeDisclaimerInAudio" className="text-sm text-slate-700">
+            Disclaimer seslendirilsin (Video Post)
+          </label>
         </div>
       </Card>
 
-      {/* Türkçe yorum: Ana aksiyon butonları. */}
+      {/* Ana aksiyon butonları */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="space-y-4">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Görsel Post Hazırla</h3>
             <p className="text-sm text-slate-600">Metin + görsel içeren hazır post</p>
           </div>
-          <Button onClick={handleCreateImagePost} disabled={loading} className="w-full">
+          <Button onClick={handleCreateImagePost} disabled={loading || !topic.trim()} className="w-full">
             {loading ? "Üretiliyor..." : "Görsel Post Hazırla"}
           </Button>
         </Card>
@@ -252,14 +574,13 @@ export default function StudioPage() {
             <h3 className="text-lg font-semibold text-slate-900">Video Post Hazırla</h3>
             <p className="text-sm text-slate-600">Metin + görsel + ses + video içeren hazır post</p>
           </div>
-          {/* Türkçe yorum: Buton çevreye göre kilitlenmez; sadece loading veya validasyon eksikse disable olur. */}
           <Button onClick={handleCreateVideoPost} disabled={loading || !topic.trim()} className="w-full">
             {loading ? "Üretiliyor..." : "Video Post Hazırla"}
           </Button>
         </Card>
       </div>
 
-      {/* Türkçe yorum: FFmpeg uyarısı (tıklama sonrası). */}
+      {/* FFmpeg uyarısı */}
       {ffmpegAlert && (
         <Card className="border-red-200 bg-red-50">
           <h3 className="font-semibold text-red-900">Video üretimi başarısız</h3>
@@ -280,14 +601,14 @@ export default function StudioPage() {
         </Card>
       )}
 
-      {/* Türkçe yorum: Progress gösterimi. */}
+      {/* Progress gösterimi */}
       {progress.length > 0 && (
         <Card className="space-y-2">
           <h3 className="font-semibold text-slate-900">İlerleme</h3>
           <div className="space-y-1">
             {progress.map((p, idx) => (
               <div key={idx} className="flex items-center gap-2 text-sm">
-                {p.status === "loading" && <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />}
+                {p.status === "loading" && <LoadingSpinner size="sm" />}
                 {p.status === "success" && <span className="text-green-600">✓</span>}
                 {p.status === "error" && <span className="text-red-600">✗</span>}
                 <span className={p.status === "error" ? "text-red-600" : "text-slate-700"}>{p.step}</span>
@@ -297,7 +618,7 @@ export default function StudioPage() {
         </Card>
       )}
 
-      {/* Türkçe yorum: Hata mesajları. */}
+      {/* Hata mesajları */}
       {errors.length > 0 && (
         <Card className="border-red-200 bg-red-50">
           <h3 className="font-semibold text-red-900">Hatalar</h3>
@@ -311,7 +632,7 @@ export default function StudioPage() {
         </Card>
       )}
 
-      {/* Türkçe yorum: Sonuç paneli. */}
+      {/* Sonuç paneli */}
       {result && (
         <Card className="space-y-4">
           <div className="flex items-center justify-between">
@@ -354,7 +675,7 @@ export default function StudioPage() {
                 </div>
               )}
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => window.location.href = `/dashboard/assets/${result.id}`}>
+                <Button variant="secondary" onClick={() => window.location.href = `/assets/${result.id}`}>
                   Detay Görüntüle
                 </Button>
                 <Button variant="secondary" onClick={handleCreateImagePost} disabled={loading}>
@@ -364,10 +685,9 @@ export default function StudioPage() {
             </div>
           )}
 
-          {/* Video Post sonucu - parçalı çıktı */}
+          {/* Video Post sonucu */}
           {result.type === "videoParts" && (
             <div className="space-y-6">
-              {/* Metin */}
               <div>
                 <h4 className="font-medium text-slate-900">Metin</h4>
                 <div className="mt-2 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-800">
@@ -387,7 +707,6 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* Görseller */}
               <div>
                 <h4 className="font-medium text-slate-900">Görseller ({result.body?.format})</h4>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -408,7 +727,6 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* Ses */}
               <div>
                 <h4 className="font-medium text-slate-900">Ses</h4>
                 <div className="mt-2 rounded-md border border-slate-200 bg-white p-3">
@@ -425,29 +743,8 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* Altyazılar */}
-              <div>
-                <h4 className="font-medium text-slate-900">Altyazılar</h4>
-                <div className="mt-2 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
-                  {(result.body?.captions || []).length === 0 ? (
-                    <p className="text-slate-500">Altyazı bulunamadı.</p>
-                  ) : (
-                    <ol className="list-decimal space-y-1 pl-5">
-                      {result.body.captions.map((c, i) => (
-                        <li key={i}>
-                          <span className="text-xs text-slate-500 mr-2">
-                            [{c.start}s → {c.end}s]
-                          </span>
-                          {c.text}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              </div>
-
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => window.location.href = `/dashboard/assets/${result.id}`}>
+                <Button variant="secondary" onClick={() => window.location.href = `/assets/${result.id}`}>
                   Detay Görüntüle
                 </Button>
                 <Button variant="secondary" onClick={handleCreateVideoPost} disabled={loading}>
@@ -459,34 +756,22 @@ export default function StudioPage() {
         </Card>
       )}
 
-      {/* Türkçe yorum: Geliştirici Modu (collapsible). */}
-      <Card className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">Geliştirici Modu</h3>
-          <Button variant="secondary" onClick={() => setDevMode(!devMode)}>
-            {devMode ? "Gizle" : "Göster"}
-          </Button>
-        </div>
-        {devMode && (
-          <div className="space-y-2 text-sm text-slate-600">
-            <p>Eski tekil ses/görsel önizlemeleri burada tutulabilir (kullanıcıya gösterilmez).</p>
-            <p>Video render zorunludur; FFmpeg yoksa render yapılamaz.</p>
-            <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700">
-              <p>
-                <strong>renderMode:</strong> {ffmpegInfo.mode ?? "unknown"}
-              </p>
-              <p>
-                <strong>ffmpeg:</strong> {ffmpegInfo.ready === null ? "unknown" : ffmpegInfo.ready ? "true" : "false"}
-              </p>
-              {lastDebugId && (
-                <p>
-                  <strong>lastDebugId:</strong> {lastDebugId}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </Card>
+      {/* AI Öneri Modal */}
+      <AISuggestionModal
+        isOpen={aiModalOpen}
+        onClose={() => {
+          setAiModalOpen(false);
+          setAiModalField(null);
+          setAiSuggestions([]);
+          setAllSuggestions([]); // Modal kapanınca tüm önerileri temizle
+        }}
+        field={aiModalField}
+        currentValue={allSuggestions} // Tüm önerileri göster
+        onSelect={handleAISelect}
+        onGenerateNew={handleGenerateNew}
+        onGenerateWithRequest={handleGenerateWithRequest}
+        loading={aiLoading}
+      />
     </div>
   );
 }

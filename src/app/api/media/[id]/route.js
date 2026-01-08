@@ -25,8 +25,12 @@ export async function GET(req, { params }) {
       }
     })();
 
-    const candidates = [".mp4", ".mp3", ".wav", ".png", ".jpg", ".jpeg", ".webp"].map((ext) => path.join(baseDir, `${mediaId}${ext}`));
-    const filePath = candidates.find((p) => fs.existsSync(p));
+    // Türkçe yorum: Önce dosya adını direkt dene (extension dahil), sonra extension'ları dene
+    let filePath = path.join(baseDir, mediaId);
+    if (!fs.existsSync(filePath)) {
+      const candidates = [".mp4", ".mp3", ".wav", ".png", ".jpg", ".jpeg", ".webp"].map((ext) => path.join(baseDir, `${mediaId}${ext}`));
+      filePath = candidates.find((p) => fs.existsSync(p));
+    }
     if (filePath) {
       const stat = fs.statSync(filePath);
       const range = req.headers.get("Range");
