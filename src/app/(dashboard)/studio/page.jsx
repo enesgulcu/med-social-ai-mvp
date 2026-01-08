@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Card from "../../../components/Card";
 import Button from "../../../components/Button";
@@ -10,6 +10,7 @@ import Textarea from "../../../components/Textarea";
 import Select from "../../../components/Select";
 import LoadingSpinner from "../../../components/LoadingSpinner";
 import AISuggestionModal from "../../../components/AISuggestionModal";
+import ImageViewerModal from "../../../components/ImageViewerModal";
 import { useAssetStore } from "../../../features/assets/store";
 
 // Türkçe yorum: Studio sayfası; 5 input alanı ile içerik üretimi, AI önerileri ile desteklenir.
@@ -43,6 +44,10 @@ export default function StudioPage() {
     targetAudience: [],
   });
 
+  // Client-side cache for AI suggestions to avoid repeated identical requests (TTL 5min)
+  const aiLocalCacheRef = useRef(new Map());
+  const CLIENT_SUGGESTIONS_TTL = 5 * 60 * 1000;
+
   // İçerik üretimi state'leri
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState([]);
@@ -52,6 +57,10 @@ export default function StudioPage() {
   const [ffmpegInfo, setFfmpegInfo] = useState({ ready: null, mode: null });
   const [ffmpegAlert, setFfmpegAlert] = useState(false);
   const [lastDebugId, setLastDebugId] = useState("");
+  // Görsel tam ekran görüntüleyici
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState(null);
+  const [viewerAlt, setViewerAlt] = useState("");
 
   // FFmpeg durumu kontrolü
   useEffect(() => {
@@ -85,6 +94,30 @@ export default function StudioPage() {
         purpose,
         targetAudience,
       };
+
+      // Client-side cache check
+      try {
+        const excludeSuggestions = generateNew ? allSuggestions : [];
+        const generationIndex = Math.floor(excludeSuggestions.length / 5);
+        const cacheKey = JSON.stringify({ field, otherFields, generationIndex, userRequest });
+        const cached = aiLocalCacheRef.current.get(cacheKey);
+        if (cached && Date.now() - cached.ts < CLIENT_SUGGESTIONS_TTL) {
+          // Apply cached suggestions
+          setAiSuggestions(cached.suggestions);
+          if (generateNew) {
+            setAllSuggestions(prev => [...cached.suggestions, ...prev]);
+            setFieldSuggestions(prev => ({ ...prev, [field]: [...cached.suggestions, ...(prev[field] || [])] }));
+          } else {
+            setAllSuggestions(cached.suggestions);
+            setFieldSuggestions(prev => ({ ...prev, [field]: cached.suggestions }));
+          }
+          setAiLoading(false);
+          setAiModalOpen(true);
+          return;
+        }
+      } catch (e) {
+        // ignore cache errors
+      }
 
       // Yeni örnekler üretiliyorsa, tüm daha önce gösterilen önerileri excludeSuggestions olarak gönder
       const excludeSuggestions = generateNew ? allSuggestions : [];
@@ -123,6 +156,11 @@ export default function StudioPage() {
       }
       
       if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+        // store client cache
+        try {
+          const cacheKey = JSON.stringify({ field, otherFields, generationIndex, userRequest });
+          aiLocalCacheRef.current.set(cacheKey, { ts: Date.now(), suggestions: data.suggestions });
+        } catch (e) {}
         setAiSuggestions(data.suggestions);
         // Yeni önerileri üste ekle (yeni öneriler üstte, eskiler aşağıda)
         if (generateNew) {
@@ -202,6 +240,21 @@ export default function StudioPage() {
         targetAudience,
       };
 
+      // Client-side cache check for exclude-based requests
+      try {
+        const generationIndex = Math.floor(excludeList.length / 5);
+        const cacheKey = JSON.stringify({ field, otherFields, generationIndex, userRequest, excludeListLength: excludeList.length });
+        const cached = aiLocalCacheRef.current.get(cacheKey);
+        if (cached && Date.now() - cached.ts < CLIENT_SUGGESTIONS_TTL) {
+          setAiSuggestions(cached.suggestions);
+          setAllSuggestions(prev => [...cached.suggestions, ...prev]);
+          setFieldSuggestions(prev => ({ ...prev, [field]: [...cached.suggestions, ...(prev[field] || [])] }));
+          setAiLoading(false);
+          setAiModalOpen(true);
+          return;
+        }
+      } catch (e) {}
+
       console.log("Generating new suggestions, excluding:", excludeList.length, "items:", excludeList); // Debug
       if (userRequest) {
         console.log("User request:", userRequest); // Debug
@@ -244,6 +297,12 @@ export default function StudioPage() {
       }
       
       if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+        // store in client cache
+        try {
+          const generationIndex = Math.floor(excludeList.length / 5);
+          const cacheKey = JSON.stringify({ field, otherFields, generationIndex, userRequest, excludeListLength: excludeList.length });
+          aiLocalCacheRef.current.set(cacheKey, { ts: Date.now(), suggestions: data.suggestions });
+        } catch (e) {}
         setAiSuggestions(data.suggestions);
         // Yeni önerileri üste ekle (yeni öneriler üstte, eskiler aşağıda)
         setAllSuggestions(prev => {
@@ -347,10 +406,16 @@ export default function StudioPage() {
   };
 
   // Görsel Post hazırlama
-  const handleCreateImagePost = async () => {
+  const handleCreateImagePost = async (enhancedPrompt = null, isAlternative = false) => {
     if (!topic.trim()) {
       setErrors([{ step: "Giriş", message: "Konu gerekli" }]);
       return;
+    }
+    // Eğer handler doğrudan buton onClick tarafından çağrıldıysa,
+    // React SyntheticEvent ilk arg olarak gelebilir. Bu durumda arg'u yok say.
+    if (enhancedPrompt && (enhancedPrompt.nativeEvent || enhancedPrompt.currentTarget || enhancedPrompt.target?.nodeType)) {
+      enhancedPrompt = null;
+      isAlternative = false;
     }
 
     setLoading(true);
@@ -361,6 +426,13 @@ export default function StudioPage() {
 
     try {
       setProgress([{ step: "Metin üretiliyor...", status: "loading" }]);
+      // Eğer alternatif üret isteniyorsa ve explicit enhancedPrompt verilmediyse,
+      // mevcut kullanılan prompt üzerinden basit bir varyasyon talebi oluştur.
+      let ep = enhancedPrompt;
+      if (isAlternative && !ep) {
+        ep = (result?.body?.image?.usedPrompt ? `${result.body.image.usedPrompt} -- alternatif varyasyon üret` : `${topic} için alternatif varyasyon üret`);
+      }
+
       const res = await fetch("/api/studio/image-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -371,6 +443,8 @@ export default function StudioPage() {
           addDisclaimer: true,
           voice,
           includeDisclaimerInAudio,
+          visualDesignRequest: visualDesignRequest || undefined,
+          enhancedPrompt: ep || undefined,
         }),
       });
 
@@ -397,10 +471,15 @@ export default function StudioPage() {
   };
 
   // Video Post hazırlama
-  const handleCreateVideoPost = async () => {
+  const handleCreateVideoPost = async (enhancedPrompt = null, isAlternative = false) => {
     if (!topic.trim()) {
       setErrors([{ step: "Giriş", message: "Konu gerekli" }]);
       return;
+    }
+    // Ignore React SyntheticEvent if passed as first argument from onClick
+    if (enhancedPrompt && (enhancedPrompt.nativeEvent || enhancedPrompt.currentTarget || enhancedPrompt.target?.nodeType)) {
+      enhancedPrompt = null;
+      isAlternative = false;
     }
 
     setLoading(true);
@@ -412,6 +491,11 @@ export default function StudioPage() {
 
     try {
       setProgress([{ step: "Metin üretiliyor...", status: "loading" }]);
+      let ep = enhancedPrompt;
+      if (isAlternative && !ep) {
+        ep = `${topic} için alternatif varyasyon üret`;
+      }
+
       const res = await fetch("/api/studio/video-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -422,6 +506,8 @@ export default function StudioPage() {
           addDisclaimer: true,
           voice,
           includeDisclaimerInAudio,
+          visualDesignRequest: visualDesignRequest || undefined,
+          enhancedPrompt: ep || undefined,
         }),
       });
 
@@ -646,7 +732,15 @@ export default function StudioPage() {
           {result.type === "imagePost" && (
             <div className="space-y-4">
               <div>
-                <h4 className="font-medium text-slate-900">Post Metni</h4>
+                <h4 className="font-medium text-slate-900">Başlık</h4>
+                <p className="mt-1 text-sm text-slate-700 font-medium">{result.title}</p>
+
+                <h4 className="mt-3 font-medium text-slate-900">Kullanılan Prompt</h4>
+                <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                  <p className="whitespace-pre-wrap">{result.body?.image?.usedPrompt || result.body?.image?.prompt || "(Prompt yok)"}</p>
+                </div>
+
+                <h4 className="mt-3 font-medium text-slate-900">Post Metni</h4>
                 <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
                   {result.body?.text?.hook && <p className="font-medium mb-2">{result.body.text.hook}</p>}
                   {result.body?.text?.bullets?.length > 0 && (
@@ -656,31 +750,55 @@ export default function StudioPage() {
                       ))}
                     </ul>
                   )}
-                  {result.body?.text?.cta && <p className="font-medium mb-2">{result.body.text.cta}</p>}
+                  {result.body?.text?.text && <p className="whitespace-pre-wrap">{result.body.text.text}</p>}
+                  {result.body?.text?.cta && <p className="font-medium mt-2">{result.body.text.cta}</p>}
                   {result.body?.text?.disclaimer && <p className="text-xs text-slate-500 italic">{result.body.text.disclaimer}</p>}
                 </div>
-              </div>
-              {result.body?.image?.imageUrl ? (
-                <div>
+
+                {/* Etiketler */}
+                {((result.body?.tags && result.body.tags.length > 0) || (result.cdnaSnapshot?.styleGuide?.visualTags && result.cdnaSnapshot.styleGuide.visualTags.length > 0)) && (
+                  <div className="mt-3">
+                    <h4 className="font-medium text-slate-900">Etiketler</h4>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(result.body?.tags || result.cdnaSnapshot?.styleGuide?.visualTags || []).map((t, i) => (
+                        <span key={i} className="text-xs bg-slate-100 px-2 py-1 rounded">#{t.replace(/^#/, "")}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Görsel */}
+                <div className="mt-4">
                   <h4 className="font-medium text-slate-900">Görsel</h4>
-                  <img
-                    src={result.body.image.imageUrl}
-                    alt={result.title}
-                    className="mt-2 w-full rounded-md border border-slate-200"
-                  />
+                  {result.body?.image?.imageUrl ? (
+                    <div className="mt-2">
+                      <img
+                        src={result.body.image.imageUrl}
+                        alt={result.title}
+                        className="w-full rounded-md border border-slate-200 cursor-pointer"
+                        onClick={() => { setViewerSrc(result.body.image.imageUrl); setViewerAlt(result.title || ""); setViewerOpen(true); }}
+                      />
+                      <div className="mt-2 flex gap-2">
+                        <a href={result.body.image.imageUrl} download>
+                          <Button variant="secondary">Görseli İndir</Button>
+                        </a>
+                        <Button variant="secondary" onClick={() => handleCreateImagePost(null, true)} disabled={loading}>
+                          Alternatif Üret
+                        </Button>
+                        <Button variant="secondary" onClick={handleCreateImagePost} disabled={loading}>
+                          Tekrar Üret
+                        </Button>
+                        <Button variant="secondary" onClick={() => window.location.href = `/assets/${result.id}`}>
+                          Detay Görüntüle
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-600">
+                      Görsel üretilemedi (API key eksik veya hata oluştu)
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-600">
-                  Görsel üretilemedi (API key eksik veya hata oluştu)
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => window.location.href = `/assets/${result.id}`}>
-                  Detay Görüntüle
-                </Button>
-                <Button variant="secondary" onClick={handleCreateImagePost} disabled={loading}>
-                  Tekrar Üret
-                </Button>
               </div>
             </div>
           )}
@@ -713,7 +831,22 @@ export default function StudioPage() {
                   {(result.body?.images || []).map((img, i) => (
                     <div key={i} className="rounded-md border border-slate-200 bg-white p-2">
                       {img?.url ? (
-                        <img src={img.url} alt={`Sahne ${img.sceneIndex || i + 1}`} className="h-48 w-full rounded object-cover" />
+                        <div>
+                          <img
+                            src={img.url}
+                            alt={`Sahne ${img.sceneIndex || i + 1}`}
+                            className="h-48 w-full rounded object-cover cursor-pointer"
+                            onClick={() => { setViewerSrc(img.url); setViewerAlt(`Sahne ${img.sceneIndex || i + 1}`); setViewerOpen(true); }}
+                          />
+                          <div className="mt-2 flex items-center gap-2">
+                            <a href={img.url} download>
+                              <Button variant="secondary">İndir</Button>
+                            </a>
+                            <Button variant="secondary" onClick={() => handleCreateVideoPost(null, true)} disabled={loading}>
+                              Alternatif Üret
+                            </Button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="flex h-48 w-full items-center justify-center rounded bg-slate-50 text-xs text-slate-500">
                           Görsel yok
@@ -731,7 +864,14 @@ export default function StudioPage() {
                 <h4 className="font-medium text-slate-900">Ses</h4>
                 <div className="mt-2 rounded-md border border-slate-200 bg-white p-3">
                   {result.body?.audio?.audioUrl ? (
-                    <audio src={result.body.audio.audioUrl} controls className="w-full" />
+                    <div>
+                      <audio src={result.body.audio.audioUrl} controls className="w-full" />
+                      <div className="mt-2">
+                        <a href={result.body.audio.audioUrl} download>
+                          <Button variant="secondary">Sesi İndir</Button>
+                        </a>
+                      </div>
+                    </div>
                   ) : (
                     <div className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-600">
                       Ses dosyası üretilmedi.
@@ -772,6 +912,7 @@ export default function StudioPage() {
         onGenerateWithRequest={handleGenerateWithRequest}
         loading={aiLoading}
       />
+      <ImageViewerModal open={viewerOpen} src={viewerSrc} alt={viewerAlt} onClose={() => setViewerOpen(false)} />
     </div>
   );
 }

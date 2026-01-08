@@ -27,7 +27,7 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    const { topic, notes = "", format = "9:16", addDisclaimer = true, visualDesignRequest = "" } = body || {};
+    const { topic, notes = "", format = "9:16", addDisclaimer = true, visualDesignRequest = "", enhancedPrompt = null } = body || {};
     const debugId = `api-imagepost-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     console.log(`[studio][${debugId}][api] image-post request`, {
       userId: session.user.id,
@@ -47,6 +47,7 @@ export async function POST(req) {
       notes: notes.trim(),
       format,
       addDisclaimer,
+      enhancedPrompt: enhancedPrompt ? enhancedPrompt.trim() : null,
       visualDesignRequest: visualDesignRequest.trim(), // Görsel tasarım talebi
     });
 
@@ -63,6 +64,7 @@ export async function POST(req) {
         format,
         addDisclaimer,
         visualDesignRequest: visualDesignRequest || undefined,
+        enhancedPrompt: enhancedPrompt ? enhancedPrompt : undefined,
         createdAt: new Date().toISOString(),
       },
     };

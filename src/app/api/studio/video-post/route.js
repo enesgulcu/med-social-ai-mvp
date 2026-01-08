@@ -27,7 +27,7 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    const { topic, notes = "", format = "9:16", addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, visualDesignRequest = "" } = body || {};
+    const { topic, notes = "", format = "9:16", addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, visualDesignRequest = "", enhancedPrompt = null } = body || {};
     const debugId = `api-videopost-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     console.log(`[studio][${debugId}][api] video-post request`, {
       userId: session.user.id,
@@ -50,6 +50,7 @@ export async function POST(req) {
       addDisclaimer,
       voice,
       includeDisclaimerInAudio,
+      enhancedPrompt: enhancedPrompt ? enhancedPrompt.trim() : null,
       visualDesignRequest: visualDesignRequest.trim(), // Görsel tasarım talebi
       // Türkçe yorum: Render endpoint'i oturum doğrulaması istediği için gelen isteğin Cookie bilgisini forward ediyoruz.
       requestCookie: req.headers.get("cookie") || "",
@@ -66,6 +67,7 @@ export async function POST(req) {
         voice,
         includeDisclaimerInAudio,
         visualDesignRequest: visualDesignRequest || undefined,
+        enhancedPrompt: enhancedPrompt ? enhancedPrompt : undefined,
         createdAt: new Date().toISOString(),
       },
     };

@@ -239,7 +239,7 @@ export async function createImagePost({ userId, topic, notes = "", format, addDi
  * @param {boolean} [params.addDisclaimer=true] - Disclaimer ekle
  * @returns {Promise<{success: boolean, asset?: Object, errors?: Array, usedMock?: boolean}>}
  */
-export async function createVideoPost({ userId, topic, notes = "", format, addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, requestCookie = "", visualDesignRequest = "" }) {
+export async function createVideoPost({ userId, topic, notes = "", format, addDisclaimer = true, voice = "alloy", includeDisclaimerInAudio = false, requestCookie = "", visualDesignRequest = "", enhancedPrompt = null }) {
   const debugId = genDebugId("videopost");
   const startTime = Date.now();
   const errors = [];
@@ -342,6 +342,7 @@ export async function createVideoPost({ userId, topic, notes = "", format, addDi
               topic: sceneFocus,
               specialty: notes || "Genel",
               contentDNA,
+              enhancedPrompt: enhancedPrompt ? enhancedPrompt : undefined,
               visualDesignRequest: visualDesignRequest 
                 ? `${visualDesignRequest}. Bu sahne ${scenePerspective} olmalı. ${sceneSentence ? `Sahne içeriği: "${sceneSentence}"` : ''}`
                 : `Bu sahne ${scenePerspective} olmalı. ${sceneSentence ? `Sahne içeriği: "${sceneSentence}"` : ''}`,

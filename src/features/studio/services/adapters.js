@@ -132,9 +132,21 @@ export async function generateImage(input, format = "9:16") {
   try {
     const contentDNA = input?.contentDNA || {};
     const styleGuide = contentDNA.styleGuide || {};
-    const visualStyle = styleGuide.visualStyle || "stylized-medical";
     const preferredTags = styleGuide.visualTags || [];
     const styleNotes = (contentDNA?.styleGuide?.styleSummary || "") + " " + (contentDNA?.styleGuide?.notes || "");
+
+    // Inspect user's visualDesignRequest to prioritize explicit style keywords.
+    const designReq = (input?.visualDesignRequest || "").toLowerCase();
+    let visualStyle = styleGuide.visualStyle || "stylized-medical";
+    if (designReq) {
+      if (designReq.includes("real") || designReq.includes("realistik") || designReq.includes("fotoreal") || designReq.includes("foto")) {
+        visualStyle = "photorealistic";
+      } else if (designReq.includes("vekt" ) || designReq.includes("vector")) {
+        visualStyle = "vector";
+      } else if (designReq.includes("minimal")) {
+        visualStyle = "minimalist";
+      }
+    }
     const tone = contentDNA.normalizedTone || "sakin";
 
     // Türkçe yorum: Content DNA'dan prompt türetilir; ham prompt yok.
@@ -151,16 +163,40 @@ export async function generateImage(input, format = "9:16") {
     const formatText = format === "9:16" 
       ? "Görsel DİKEY (9:16) formatında olmalı - Instagram Story/Reels için uygun, dikey kompozisyon."
       : "Görsel YATAY (16:9) formatında olmalı - YouTube/Post için uygun, yatay kompozisyon.";
-    
+    // Compose style-specific description
+    let styleDesc = "Stilize ama güven veren, abartısız, medikal temalı illüstratif kompozisyon.";
+    if (visualStyle === "photorealistic") {
+      styleDesc = "Fotogerçekçi, gerçekçi ve medikal fotoğraf tarzında kompozisyon.";
+    } else if (visualStyle === "vector") {
+      styleDesc = "Vektörel, temiz ve modern bir kompozisyon; düz renk blokları ve basit form kullanımı.";
+    } else if (visualStyle === "minimalist") {
+      styleDesc = "Minimalist, sade ve net kompozisyon; az sayıda unsur ve bol beyaz alan.";
+    }
+
+    // Derive simple topic-based tags (hashtag-ready)
+    const deriveTags = (topicText = "") => {
+      if (!topicText) return [];
+      const words = topicText
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+        .split(/\s+/)
+        .map((w) => w.replace(/[^a-zA-Z0-9ığüşöçİĞÜŞÖÇ-]/g, ""))
+        .filter((w) => w && w.length > 2 && !["ve","ile","için","veya","gibi"].includes(w));
+      const uniq = [...new Set(words)];
+      return uniq.slice(0, 6);
+    };
+
+    const derivedTags = Array.from(new Set([...(deriveTags(input?.topic || "")), ...(preferredTags || [])])).slice(0, 6);
+
     // Base prompt - Görsel tasarım talebi EN BAŞTA olmalı
-    const basePrompt = `${designRequestText}Stilize ama güven veren, abartısız, medikal temalı illüstratif kompozisyon. 
-Tema: ${input?.topic || "sağlık bilgisi"}. 
-Branş: ${input?.specialty || "genel"}. 
-Ton: ${tone}. 
-Görsel stili: ${visualStyle}. 
-Tercih edilen etiketler: ${(preferredTags || []).join(", ")}. 
-Stil notları: ${styleNotes?.trim() || "yok"}. 
-Doktor portresi yok, klinik birebir görsel yok. 
+    const basePrompt = `${designRequestText}${styleDesc}
+Tema: ${input?.topic || "sağlık bilgisi"}.
+Branş: ${input?.specialty || "genel"}.
+Ton: ${tone}.
+Görsel stili: ${visualStyle}.
+Tercih edilen etiketler: ${derivedTags.join(", ") || (preferredTags || []).join(", ")}.
+Stil notları: ${styleNotes?.trim() || "yok"}.
+Doktor portresi yok, klinik birebir görsel yok.
 ${formatText}
 
 ⚠️ YAZIM KURALLARI (ÇOK ÖNEMLİ):
@@ -206,17 +242,20 @@ ${formatText}
     const result = await createImage({ prompt, format });
 
       if (result.ok && result.imageUrl) {
-        return {
-          title: `Görsel (${format})`,
-          body: {
-            imageUrl: result.imageUrl,
-            usedPrompt: result.usedPrompt,
-            format,
-            meta: result.meta || {},
-          },
-          cdnaSnapshot: input?.contentDNA || baseCdna,
-          usedMock: false,
-        };
+          return {
+            title: `Görsel (${format})`,
+            body: {
+              imageUrl: result.imageUrl,
+              usedPrompt: result.usedPrompt,
+              format,
+              meta: {
+                ...(result.meta || {}),
+                tags: result.meta?.tags || derivedTags,
+              },
+            },
+            cdnaSnapshot: input?.contentDNA || baseCdna,
+            usedMock: false,
+          };
       } else {
         // Türkçe yorum: Gemini başarısız olursa placeholder + prompt ile fallback.
         return {
@@ -226,7 +265,8 @@ ${formatText}
             usedPrompt: result.usedPrompt || prompt,
             format,
             meta: {
-              ...result.meta,
+              ...(result.meta || {}),
+              tags: result.meta?.tags || derivedTags,
               fallback: true,
               message: result.message || "Görsel üretilemedi",
             },

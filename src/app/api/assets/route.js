@@ -13,14 +13,19 @@ export async function GET(req) {
   const url = new URL(req.url);
   const typeFilter = url.searchParams.get("type");
   const statusFilter = url.searchParams.get("status");
+  // Pagination: allow `limit` query param, default to 50, cap to 200 to avoid heavy sorts
+  const limitParam = parseInt(url.searchParams.get("limit") || "", 10);
+  const take = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 200) : 50;
 
   const where = { userId: session.user.id };
   if (typeFilter) where.type = typeFilter;
   if (statusFilter) where.status = statusFilter;
 
+  // Use a limited findMany with orderBy on `id` (indexed) to avoid MongoDB in-memory sort issues.
   const assets = await prisma.asset.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: { id: "desc" },
+    take,
     include: { safetyChecks: true, variants: true },
   });
 

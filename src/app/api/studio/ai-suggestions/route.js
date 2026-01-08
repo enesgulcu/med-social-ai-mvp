@@ -4,6 +4,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/auth";
 import prisma from "../../../../lib/prisma";
 import { callOpenAIChat } from "../../../../lib/ai/openaiClient";
+// Simple in-memory cache for AI suggestions to avoid repeated identical calls.
+// Keyed by a stable JSON of request parameters. TTL applied on read.
+const SUGGESTIONS_CACHE = new Map();
+const SUGGESTIONS_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 export async function POST(req) {
   const session = await getServerSession(authOptions);
@@ -51,12 +55,14 @@ export async function POST(req) {
       previousAssets = await prisma.asset.findMany({
         where: { userId: session.user.id },
         select: { 
+          id: true,
           title: true, 
           body: true, 
           type: true,
-          createdAt: true, // Sıralama için gerekli
+          createdAt: true,
         },
-        orderBy: { createdAt: "desc" },
+        // Sort by `id` (MongoDB _id) which is indexed and avoids expensive in-memory sorts
+        orderBy: { id: "desc" },
         take: 10, // Son 10 içerik (bellek limiti için azaltıldı)
       });
     } catch (error) {
@@ -275,6 +281,28 @@ Her öneri tek satır, numaralı liste formatında olmalı (1. Örnek, 2. Örnek
 - Daha önce üretilen içeriklerden tamamen farklı olmalı.`,
     };
 
+    // Server-side cache check: compute a stable key for this suggestions request
+    try {
+      const cacheKeyObj = {
+        userId: session.user.id,
+        field,
+        currentValue,
+        otherFields,
+        generationIndex,
+        userRequest,
+        // include visual preferences influence to avoid false cache hits
+        visualTags,
+        visualStyle,
+      };
+      const cacheKey = JSON.stringify(cacheKeyObj);
+      const cached = SUGGESTIONS_CACHE.get(cacheKey);
+      if (cached && Date.now() - cached.ts < SUGGESTIONS_CACHE_TTL) {
+        return new Response(JSON.stringify({ suggestions: cached.suggestions, cached: true }), { status: 200 });
+      }
+    } catch (e) {
+      // ignore cache errors
+    }
+
     const userPrompt = fieldPrompts[field] || `5 farklı örnek üret: ${field}`;
 
     const system = excludeSuggestions.length > 0
@@ -471,9 +499,32 @@ Her öneri field'ın amacına uygun format ve uzunlukta olmalıdır.`;
 
     console.log("Parse edilmiş öneriler:", finalSuggestions); // Debug
 
-    return Response.json({
-      suggestions: finalSuggestions,
-    });
+    // Store in cache for identical future requests
+    try {
+      const cacheKeyObj = {
+        userId: session.user.id,
+        field,
+        currentValue,
+        otherFields,
+        generationIndex,
+        userRequest,
+        visualTags,
+        visualStyle,
+      };
+      const cacheKey = JSON.stringify(cacheKeyObj);
+      SUGGESTIONS_CACHE.set(cacheKey, { ts: Date.now(), suggestions: finalSuggestions });
+      // basic cleanup of old entries (rarely run)
+      if (SUGGESTIONS_CACHE.size > 5000) {
+        const now = Date.now();
+        for (const [k, v] of SUGGESTIONS_CACHE.entries()) {
+          if (now - v.ts > SUGGESTIONS_CACHE_TTL) SUGGESTIONS_CACHE.delete(k);
+        }
+      }
+    } catch (e) {
+      // ignore cache set errors
+    }
+
+    return Response.json({ suggestions: finalSuggestions });
   } catch (error) {
     console.error("AI öneri hatası:", error);
     // Statik fallback kaldırıldı - sadece AI'dan gelen öneriler gösterilecek
