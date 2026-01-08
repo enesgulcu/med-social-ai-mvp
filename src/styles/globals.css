@@ -8,12 +8,69 @@ body {
 }
 
 a {
-  @apply text-blue-600 hover:text-blue-700;
+  @apply text-blue-600 hover:text-blue-700 transition-colors duration-200;
 }
 
 /* Kart ve sayfa düzenlerinde tutarlı maksimum genişlik */
 .page-shell {
   @apply mx-auto w-full max-w-6xl;
 }
+
+/* Smooth animations ve transitions */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* Focus ring animasyonu */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Sayfa geçişleri */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Utility classes */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideInDown {
+  animation: slideInDown 0.3s ease-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 
 

@@ -128,8 +128,8 @@ export default function SettingsPage() {
               "pastel",
               "yüksek-kontrast",
               "flat-ikon",
-              "stilize-medikal",
-              "gerçekçi-klinik",
+              "stilize-profesyonel",
+              "gerçekçi-endüstriyel",
               "monokrom",
               "yumuşak-gradyan",
             ].map((tag) => (

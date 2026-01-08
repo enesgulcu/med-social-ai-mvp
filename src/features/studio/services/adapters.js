@@ -25,6 +25,7 @@ const baseCdna = {
  * @param {string} input.topic - Konu
  * @param {string} input.specialty - Branş
  * @param {Object} input.contentDNA - Content DNA objesi
+ * @param {Object} [input.profileData] - DoctorProfile verisi (sektör, hedef kitle, ton, hedefler)
  * @returns {Promise<GenerationResult>}
  */
 export async function generateText(input) {
@@ -33,6 +34,7 @@ export async function generateText(input) {
     const { system, user } = getTextGenerationPrompt({
       topic: input?.topic || "Genel sağlık bilgisi",
       contentDNA: input?.contentDNA,
+      profileData: input?.profileData,
     });
 
     const result = await callOpenAIChat({
@@ -101,17 +103,17 @@ export async function generateText(input) {
   return {
     title: "Bilgilendirici içerik - " + (input?.specialty || "Genel"),
     body: {
-      hook: `Bugün ${input?.topic || "sağlık"} hakkında kısa bilgiler paylaşıyorum.`,
+      hook: `Bugün ${input?.topic || "konu"} hakkında kısa bilgiler paylaşıyorum.`,
       bullets: [
-        "Düzenli kontrollerinizi ihmal etmeyin",
-        "Sağlıklı yaşam tarzı benimseyin",
-        "Belirtilerde ilgili uzmana danışın",
+        "Önemli bilgileri takip edin",
+        "İlgili kaynakları inceleyin",
+        "Sorularınız için uzman desteği alın",
       ],
-      text: `Bugün ${input?.topic || "sağlık"} hakkında kısa bilgiler paylaşıyorum. Düzenli kontrollerinizi ihmal etmeyin.`,
+      text: `Bugün ${input?.topic || "konu"} hakkında kısa bilgiler paylaşıyorum. Önemli bilgileri takip edin.`,
       cta: "Daha fazla bilgi için iletişime geçin",
       disclaimer: "Bilgilendirme amaçlıdır; profesyonel danışmanlık yerine geçmez.",
-      voiceScript: `Merhaba. Bugün ${input?.topic || "konu"} hakkında birkaç önemli bilgi paylaşmak istiyorum. Öncelikle, düzenli kontrollerinizi veya kontrollerinizi ihmal etmeyin. İkinci olarak, sağlıklı bir yaklaşım benimseyin. Son olarak, herhangi bir belirti veya soru olursa ilgili uzmana danışın.`,
-      scriptSentences: [{ t: 0, text: `Bugün ${input?.topic || "sağlık"} hakkında kısa bilgiler paylaşıyorum.` }],
+      voiceScript: `Merhaba. Bugün ${input?.topic || "konu"} hakkında birkaç önemli bilgi paylaşmak istiyorum. Öncelikle, önemli bilgileri takip edin. İkinci olarak, ilgili kaynakları inceleyin. Son olarak, herhangi bir soru olursa ilgili uzmana danışın.`,
+      scriptSentences: [{ t: 0, text: `Bugün ${input?.topic || "konu"} hakkında kısa bilgiler paylaşıyorum.` }],
     },
     cdnaSnapshot: input?.contentDNA || baseCdna,
     usedMock: true,
@@ -124,6 +126,9 @@ export async function generateText(input) {
  * @param {string} input.topic - Konu
  * @param {string} input.specialty - Branş
  * @param {Object} input.contentDNA - Content DNA objesi
+ * @param {Object} [input.profileData] - DoctorProfile verisi (sektör, hedef kitle, ton, hedefler)
+ * @param {string} [input.enhancedPrompt] - Revizyon için özel prompt
+ * @param {string} [input.visualDesignRequest] - Kullanıcının görsel tasarım talebi
  * @param {string} format - "9:16" veya "16:9"
  * @returns {Promise<GenerationResult>}
  */
@@ -134,6 +139,7 @@ export async function generateImage(input, format = "9:16") {
     const styleGuide = contentDNA.styleGuide || {};
     const preferredTags = styleGuide.visualTags || [];
     const styleNotes = (contentDNA?.styleGuide?.styleSummary || "") + " " + (contentDNA?.styleGuide?.notes || "");
+    const profileData = input?.profileData || {};
 
     // Inspect user's visualDesignRequest to prioritize explicit style keywords.
     const designReq = (input?.visualDesignRequest || "").toLowerCase();
@@ -164,9 +170,9 @@ export async function generateImage(input, format = "9:16") {
       ? "Görsel DİKEY (9:16) formatında olmalı - Instagram Story/Reels için uygun, dikey kompozisyon."
       : "Görsel YATAY (16:9) formatında olmalı - YouTube/Post için uygun, yatay kompozisyon.";
     // Compose style-specific description
-    let styleDesc = "Stilize ama güven veren, abartısız, medikal temalı illüstratif kompozisyon.";
+    let styleDesc = "Stilize ama güven veren, abartısız, profesyonel temalı illüstratif kompozisyon.";
     if (visualStyle === "photorealistic") {
-      styleDesc = "Fotogerçekçi, gerçekçi ve medikal fotoğraf tarzında kompozisyon.";
+      styleDesc = "Fotogerçekçi, gerçekçi ve profesyonel fotoğraf tarzında kompozisyon.";
     } else if (visualStyle === "vector") {
       styleDesc = "Vektörel, temiz ve modern bir kompozisyon; düz renk blokları ve basit form kullanımı.";
     } else if (visualStyle === "minimalist") {
@@ -188,15 +194,26 @@ export async function generateImage(input, format = "9:16") {
 
     const derivedTags = Array.from(new Set([...(deriveTags(input?.topic || "")), ...(preferredTags || [])])).slice(0, 6);
 
+    // Profil bilgilerini prompt'a ekle
+    const profileSection = profileData && (profileData.specialty || profileData.targetAudience || profileData.tone) 
+      ? `
+Kullanıcı Profili (Profil Oluşturma'dan alınan bilgiler):
+- Sektör/Branş: ${profileData.specialty || "Genel"}
+- Hedef Kitle: ${profileData.targetAudience || "Genel halk"}
+- Ton Tercihi: ${profileData.tone || "Sakin"}
+- Hedefler: ${profileData.goals ? (typeof profileData.goals === 'string' ? profileData.goals : JSON.stringify(profileData.goals)) : "Bilgilendirme"}
+
+` : "";
+
     // Base prompt - Görsel tasarım talebi EN BAŞTA olmalı
     const basePrompt = `${designRequestText}${styleDesc}
 Tema: ${input?.topic || "sağlık bilgisi"}.
 Branş: ${input?.specialty || "genel"}.
-Ton: ${tone}.
+${profileSection}Ton: ${tone}.
 Görsel stili: ${visualStyle}.
 Tercih edilen etiketler: ${derivedTags.join(", ") || (preferredTags || []).join(", ")}.
 Stil notları: ${styleNotes?.trim() || "yok"}.
-Doktor portresi yok, klinik birebir görsel yok.
+Kişi portresi yok, sektörel birebir görsel yok.
 ${formatText}
 
 ⚠️ YAZIM KURALLARI (ÇOK ÖNEMLİ):
@@ -283,7 +300,7 @@ ${formatText}
   return {
     title: `Görsel Taslak (${format})`,
     body: {
-      prompt: `Doktor için güven verici görsel, oran ${format}, tema ${input?.topic || "bilgilendirme"}`,
+      prompt: `Profesyonel ve güven verici görsel, oran ${format}, tema ${input?.topic || "bilgilendirme"}`,
       imageUrl: null,
       format,
     },
@@ -307,7 +324,7 @@ export async function generateAudio(input) {
   // Türkçe yorum: OpenAI TTS ile ses üretimi denenir; başarısız olursa mock.
   try {
     // Türkçe yorum: voiceScript varsa onu kullan (TTS için optimize edilmiş), yoksa text kullan.
-    let textToSpeak = input?.voiceScript || input?.text || `Merhaba, bugün ${input?.topic || "sağlık"} konusunda birkaç ipucu paylaşıyorum.`;
+    let textToSpeak = input?.voiceScript || input?.text || `Merhaba, bugün ${input?.topic || "konu"} hakkında birkaç ipucu paylaşıyorum.`;
 
     // Türkçe yorum: Disclaimer ekleme (opsiyonel).
     if (input?.includeDisclaimer && input?.disclaimer) {
@@ -336,7 +353,7 @@ export async function generateAudio(input) {
   return {
     title: "Ses İçeriği Taslağı",
     body: {
-      transcript: `Merhaba, bugün ${input?.topic || "sağlık"} konusunda birkaç ipucu paylaşıyorum.`,
+      transcript: `Merhaba, bugün ${input?.topic || "konu"} hakkında birkaç ipucu paylaşıyorum.`,
       audioUrl: null,
     },
     cdnaSnapshot: input?.contentDNA || baseCdna,
@@ -355,7 +372,7 @@ export async function generateAudio(input) {
 export async function generateVideo(input) {
   // Türkçe yorum: Video timeline üretimi; render mode'a göre videoUrl eklenir.
   const scriptSentences = input?.textResult?.body?.scriptSentences || [
-    { t: 0, text: `Bugün ${input?.topic || "sağlık"} hakkında kısa bir bilgilendirme yapıyorum.` },
+    { t: 0, text: `Bugün ${input?.topic || "konu"} hakkında kısa bir bilgilendirme yapıyorum.` },
   ];
 
   // Türkçe yorum: Scene süreleri scriptSentences'den hesaplanır (basit heuristic).

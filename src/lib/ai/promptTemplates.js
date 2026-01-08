@@ -45,9 +45,10 @@ Sektöre göre uygun içerik üret. Yanıltıcı veya yasa dışı iddialardan k
  * @param {Object} params
  * @param {string} params.topic - Konu
  * @param {Object} params.contentDNA - Content DNA objesi
+ * @param {Object} [params.profileData] - DoctorProfile verisi (sektör, hedef kitle, ton, hedefler)
  * @returns {Object} { system, user }
  */
-export function getTextGenerationPrompt({ topic, contentDNA }) {
+export function getTextGenerationPrompt({ topic, contentDNA, profileData }) {
   const system = `Sen, kullanıcının sektörüne uygun sosyal medya içerikleri üreten bir içerik AI'sısın.
 Kurallar:
 - Teşhis/garanti gibi kesin iddialardan kaçın (sektöre göre uygunsuz iddialar yasaktır)
@@ -58,7 +59,20 @@ Kurallar:
   const styleGuide = contentDNA?.styleGuide || {};
   const guardrails = contentDNA?.guardrails || {};
 
-  const user = `Konu: ${topic || "Genel konu"}
+  // Profil bilgilerini prompt'a ekle
+  const profileSection = profileData ? `
+Kullanıcı Profili (Profil Oluşturma'dan alınan bilgiler):
+- Sektör/Branş: ${profileData.specialty || "Genel"}
+- Hedef Kitle: ${profileData.targetAudience || "Genel halk"}
+- Ton Tercihi: ${profileData.tone || "Sakin"}
+- Hedefler: ${profileData.goals ? (typeof profileData.goals === 'string' ? profileData.goals : JSON.stringify(profileData.goals)) : "Bilgilendirme"}
+- Biyografi: ${profileData.bio || "Belirtilmemiş"}
+
+Bu profil bilgilerine göre, içeriği özelleştirilmiş ve kişiselleştirilmiş şekilde oluştur.
+` : "";
+
+  const user = `${profileSection}
+Konu: ${topic || "Genel konu"}
 
 Content DNA:
 - Ton: ${contentDNA?.normalizedTone || "sakin"}

@@ -5,7 +5,7 @@ import Input from "../../components/Input";
 export default function StepSpecialty({ register, errors }) {
   return (
     <div className="space-y-4">
-      <Input label="Branş" placeholder="Örn: Kardiyoloji" {...register("specialty")} error={errors.specialty?.message} />
+      <Input label="Branş/Sektör" placeholder="Örn: Sağlık, E-ticaret, Eğitim, Teknoloji" {...register("specialty")} error={errors.specialty?.message} />
     </div>
   );
 }

@@ -31,6 +31,11 @@ export default function StudioPage() {
   const [includeDisclaimerInAudio, setIncludeDisclaimerInAudio] = useState(false);
   const [visualDesignRequest, setVisualDesignRequest] = useState(""); // Görsel tasarım talebi
 
+  // Admin gizli prompt görüntüleme (7034 tuşlanmasıyla açılır)
+  const [showAdminPrompt, setShowAdminPrompt] = useState(false);
+  const secretCodeRef = useRef("");
+  const adminSecretCode = process.env.NEXT_PUBLIC_ADMIN_PASS_SECRET_CODE || "7034";
+
   // AI önerileri state'leri
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiModalField, setAiModalField] = useState(null);
@@ -377,6 +382,29 @@ export default function StudioPage() {
       setAllSuggestions(fieldSuggestions[field] || []);
       setAiModalOpen(true);
     };
+
+    // Topic input için özel onChange handler - gizli kod takibi
+    const handleTopicChange = (e) => {
+      const newValue = e.target.value;
+      setValue(newValue);
+      
+      // Topic field'ı için gizli kod takibi
+      if (field === "topic") {
+        // Son yazılan karakteri al
+        const lastChar = newValue.slice(-1);
+        // Gizli kod sırasını güncelle
+        secretCodeRef.current += lastChar;
+        // Son 4 karakteri kontrol et
+        if (secretCodeRef.current.length > 4) {
+          secretCodeRef.current = secretCodeRef.current.slice(-4);
+        }
+        // Tam eşleşme kontrol et
+        if (secretCodeRef.current === adminSecretCode) {
+          setShowAdminPrompt(!showAdminPrompt);
+          secretCodeRef.current = ""; // Sıfırla
+        }
+      }
+    };
     
     return (
       <div className="space-y-2">
@@ -421,7 +449,7 @@ export default function StudioPage() {
           label=""
           placeholder={placeholder}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={field === "topic" ? handleTopicChange : (e) => setValue(e.target.value)}
           disabled={loading}
           rows={type === "textarea" ? rows : undefined}
         />
@@ -776,13 +804,15 @@ export default function StudioPage() {
                 )}
               </div>
 
-              {/* 2. Görseli Üreten Prompt */}
-              <div>
-                <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt</h4>
-                <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                  <p className="whitespace-pre-wrap">{result.body?.image?.usedPrompt || result.body?.image?.prompt || "(Prompt yok)"}</p>
+              {/* 2. Görseli Üreten Prompt - Gizli Admin Özelliği */}
+              {showAdminPrompt && (
+                <div>
+                  <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt (Admin)</h4>
+                  <div className="mt-2 rounded-md bg-yellow-50 border-2 border-yellow-200 p-3 text-sm text-slate-700">
+                    <p className="whitespace-pre-wrap font-mono text-xs">{result.body?.image?.usedPrompt || result.body?.image?.prompt || "(Prompt yok)"}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* 3. Konu Başlık Yazısı */}
               <div>
@@ -862,8 +892,8 @@ export default function StudioPage() {
                             className="h-48 w-full rounded object-cover cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => { setViewerSrc(img.url); setViewerAlt(`Sahne ${img.sceneIndex || i + 1}`); setViewerOpen(true); }}
                           />
-                          {img?.prompt && (
-                            <p className="mt-2 line-clamp-2 text-xs text-slate-500">Prompt: {img.prompt}</p>
+                          {img?.prompt && showAdminPrompt && (
+                            <p className="mt-2 line-clamp-2 text-xs text-yellow-600 font-mono text-xs bg-yellow-50 p-1 rounded">Prompt: {img.prompt}</p>
                           )}
                         </div>
                       ) : (
@@ -876,12 +906,12 @@ export default function StudioPage() {
                 </div>
               </div>
 
-              {/* 2. Görseli Üreten Prompt (ilk görselin prompt'u) */}
-              {result.body?.images?.[0]?.prompt && (
+              {/* 2. Görseli Üreten Prompt (ilk görselin prompt'u) - Gizli Admin Özelliği */}
+              {result.body?.images?.[0]?.prompt && showAdminPrompt && (
                 <div>
-                  <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt</h4>
-                  <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                    <p className="whitespace-pre-wrap">{result.body.images[0].prompt}</p>
+                  <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt (Admin)</h4>
+                  <div className="mt-2 rounded-md bg-yellow-50 border-2 border-yellow-200 p-3 text-sm text-slate-700">
+                    <p className="whitespace-pre-wrap font-mono text-xs">{result.body.images[0].prompt}</p>
                   </div>
                 </div>
               )}

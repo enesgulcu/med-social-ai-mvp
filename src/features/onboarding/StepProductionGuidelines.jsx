@@ -22,7 +22,7 @@ export default function StepProductionGuidelines({ errors = {} }) {
 
       <Textarea
         label="İçerik üretimi için notlar"
-        placeholder={"Örn: Resmi bir dil kullan, tıbbi iddialardan kaçın, markanın mavi tonlarını vurgula, öncelikli içerik: kısa video ve infografik"}
+        placeholder={"Örn: Resmi bir dil kullan, kesin iddialardan kaçın, markanın mavi tonlarını vurgula, öncelikli içerik: kısa video ve infografik"}
         value={data.productionGuidelines || ""}
         onChange={handleChange}
         error={errors.productionGuidelines?.message}

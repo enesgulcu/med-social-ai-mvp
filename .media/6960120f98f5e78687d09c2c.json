@@ -1,0 +1,20 @@
+{
+  "assetId": "6960120f98f5e78687d09c2c",
+  "userId": "695fdfe92a8022b741475607",
+  "type": "videoParts",
+  "savedAt": "2026-01-08T20:22:53.980Z",
+  "params": {
+    "topic": "Yapay zeka ile konuşarak ingilizce öğrenen çocuklar",
+    "notes": "Açıklama: Yapay zeka ile konuşarak İngilizce öğrenme, çocukların dil becerilerini geliştirmeleri için yenilikçi bir yol sunuyor. Bu teknoloji, çocukların eğlenceli bir ortamda pratik yaparak dil bilgilerini pekiştirmesini sağlarken, aynı zamanda onların özgüvenlerini artıran bir deneyim sunar.. Amaç: Eğitim. Hedef kitle: Ailelerin eğitimdeki öncü temsilcileri",
+    "format": "16:9",
+    "addDisclaimer": true,
+    "voice": "alloy",
+    "includeDisclaimerInAudio": false
+  },
+  "format": "16:9",
+  "duration": 7,
+  "counts": {
+    "images": 3,
+    "captions": 2
+  }
+}

@@ -163,7 +163,7 @@ Not: Görsellerin içeriğini doğrudan göremiyorum, ancak URL'lerden ve kullan
 
 JSON formatında döndür:
 {
-  "visualStyle": "minimal|modern|pastel|yüksek-kontrast|flat-ikon|stilize-medikal|gerçekçi-klinik|monokrom|yumuşak-gradyan",
+  "visualStyle": "minimal|modern|pastel|yüksek-kontrast|flat-ikon|stilize-profesyonel|gerçekçi-endüstriyel|monokrom|yumuşak-gradyan",
   "tags": ["tag1", "tag2", ...],
   "summary": "Kısa stil özeti (2-3 cümle)",
   "colorPalette": ["renk1", "renk2", ...],

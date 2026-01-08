@@ -53,9 +53,9 @@ async function logUsage(userId, actionType, provider, success, durationMs, error
 }
 
 /**
- * Türkçe yorum: ContentDNA'yı kullanıcı için fetch eder.
+ * Türkçe yorum: ContentDNA ve DoctorProfile'ı kullanıcı için fetch eder.
  * @param {string} userId - Kullanıcı ID
- * @returns {Promise<Object|null>} ContentDNA objesi veya null
+ * @returns {Promise<Object|null>} { contentDNA, profileData } objesi veya null
  */
 async function fetchContentDNA(userId) {
   try {
@@ -68,7 +68,12 @@ async function fetchContentDNA(userId) {
       orderBy: { updatedAt: "desc" },
     });
 
-    // 3) Merge priority: DynamicProfile.preferences override ContentDNA values when present
+    // 3) Fetch DoctorProfile (Profil Oluşturma'dan alınan veriler)
+    const doctorProfile = await prisma.doctorProfile.findUnique({
+      where: { userId },
+    });
+
+    // 4) Merge priority: DynamicProfile.preferences override ContentDNA values when present
     let merged = null;
     if (dynamicProfile && dynamicProfile.preferences) {
       const prefs = dynamicProfile.preferences || {};
@@ -84,10 +89,19 @@ async function fetchContentDNA(userId) {
       merged = null;
     }
 
-    return merged;
+    // 5) DoctorProfile verisini hazırla (görsel üretim promptlarında kullanılacak)
+    const profileData = doctorProfile ? {
+      specialty: doctorProfile.specialty || "Genel",
+      targetAudience: doctorProfile.targetAudience || "Genel halk",
+      tone: doctorProfile.tone || "Sakin",
+      goals: doctorProfile.goals || {},
+      bio: doctorProfile.bio || "",
+    } : null;
+
+    return { contentDNA: merged, profileData };
   } catch (error) {
     console.error("ContentDNA fetch hatası:", error);
-    return null;
+    return { contentDNA: null, profileData: null };
   }
 }
 
@@ -109,11 +123,11 @@ export async function createImagePost({ userId, topic, notes = "", format, addDi
 
   logDebug(debugId, "start", { userId, topic, format, addDisclaimer, notesLen: (notes || "").length });
   try {
-    // 1) ContentDNA fetch
+    // 1) ContentDNA ve ProfileData fetch
     const cdnaStart = Date.now();
-    const contentDNA = await fetchContentDNA(userId);
+    const { contentDNA, profileData } = await fetchContentDNA(userId);
     await logUsage(userId, "cdna", "db", !!contentDNA, Date.now() - cdnaStart);
-    logDebug(debugId, "cdna", { ok: !!contentDNA, ms: Date.now() - cdnaStart });
+    logDebug(debugId, "cdna", { ok: !!contentDNA, profileOk: !!profileData, ms: Date.now() - cdnaStart });
 
     if (!contentDNA) {
       return {
@@ -129,8 +143,9 @@ export async function createImagePost({ userId, topic, notes = "", format, addDi
     try {
       textResult = await generateText({
         topic,
-        specialty: notes || "Genel",
+        specialty: notes || profileData?.specialty || "Genel",
         contentDNA,
+        profileData,
       });
       usedMock = usedMock || textResult.usedMock;
       await logUsage(userId, "text", textResult.usedMock ? "mock" : "openai", true, Date.now() - textStart);
@@ -172,8 +187,9 @@ export async function createImagePost({ userId, topic, notes = "", format, addDi
       imageResult = await generateImage(
         {
           topic,
-          specialty: notes || "Genel",
+          specialty: notes || profileData?.specialty || "Genel",
           contentDNA,
+          profileData,
           enhancedPrompt: enhancedPrompt || undefined, // Revizyon için özel prompt
           visualDesignRequest: visualDesignRequest || undefined, // Kullanıcının görsel tasarım talebi
         },
@@ -271,9 +287,9 @@ export async function createVideoPost({ userId, topic, notes = "", format, addDi
   try {
     // 1) ContentDNA fetch
     const cdnaStart = Date.now();
-    const contentDNA = await fetchContentDNA(userId);
+    const { contentDNA, profileData } = await fetchContentDNA(userId);
     await logUsage(userId, "cdna", "db", !!contentDNA, Date.now() - cdnaStart);
-    logDebug(debugId, "cdna", { ok: !!contentDNA, ms: Date.now() - cdnaStart });
+    logDebug(debugId, "cdna", { ok: !!contentDNA, profileOk: !!profileData, ms: Date.now() - cdnaStart });
 
     if (!contentDNA) {
       return {
@@ -289,8 +305,9 @@ export async function createVideoPost({ userId, topic, notes = "", format, addDi
     try {
       textResult = await generateText({
         topic,
-        specialty: notes || "Genel",
+        specialty: notes || profileData?.specialty || "Genel",
         contentDNA,
+        profileData,
       });
       usedMock = usedMock || textResult.usedMock;
       await logUsage(userId, "text", textResult.usedMock ? "mock" : "openai", true, Date.now() - textStart);
@@ -362,8 +379,9 @@ export async function createVideoPost({ userId, topic, notes = "", format, addDi
           imageResult = await generateImage(
             {
               topic: sceneFocus,
-              specialty: notes || "Genel",
+              specialty: notes || profileData?.specialty || "Genel",
               contentDNA,
+              profileData,
               enhancedPrompt: enhancedPrompt ? enhancedPrompt : undefined,
               visualDesignRequest: visualDesignRequest 
                 ? `${visualDesignRequest}. Bu sahne ${scenePerspective} olmalı. ${sceneSentence ? `Sahne içeriği: "${sceneSentence}"` : ''}`

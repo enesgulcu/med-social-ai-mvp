@@ -7,7 +7,7 @@ const Input = React.forwardRef(({ label, error, className = "", required, ...pro
       {label && <span>{label}</span>}
       <input
         ref={ref}
-        className={["rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500", className].filter(Boolean).join(" ")}
+        className={["rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:shadow-lg focus:shadow-blue-200/30 hover:border-slate-300", className].filter(Boolean).join(" ")}
         {...props}
         // HTML5 required attribute'unu kaldırıyoruz, Zod validasyonu kullanılıyor
       />

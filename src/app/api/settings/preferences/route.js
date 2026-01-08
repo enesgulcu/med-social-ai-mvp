@@ -68,7 +68,7 @@ Sadece 2-3 cümlede, renk paleti, kompozisyon, his/ton odaklı özet yaz.`;
         if (cdna) {
           const nextStyle = {
             ...(cdna.styleGuide || {}),
-            visualStyle: (cdna.styleGuide?.visualStyle || "stilize-medikal"),
+            visualStyle: (cdna.styleGuide?.visualStyle || "stilize-profesyonel"),
             visualTags: preferredVisualTags || [],
             styleSummary,
           };
