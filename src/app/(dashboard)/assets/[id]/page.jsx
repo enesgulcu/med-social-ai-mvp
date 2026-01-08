@@ -8,6 +8,7 @@ import Button from "../../../../components/Button";
 import Textarea from "../../../../components/Textarea";
 import Modal from "../../../../components/Modal";
 import LoadingSpinner from "../../../../components/LoadingSpinner";
+import ImageViewerModal from "../../../../components/ImageViewerModal";
 import { useAssetStore } from "../../../../features/assets/store";
 
 // Türkçe yorum: Detay sayfası; asset bulunmazsa sade mesaj verir, crash etmez. Görsel/audio/video preview içerir.
@@ -22,6 +23,9 @@ export default function AssetDetailPage() {
   const [reviseLoading, setReviseLoading] = useState(false);
   const [showReviseModal, setShowReviseModal] = useState(false);
   const [reviseRequest, setReviseRequest] = useState("");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState(null);
+  const [viewerAlt, setViewerAlt] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -183,39 +187,32 @@ export default function AssetDetailPage() {
       />
       {message && <p className="text-sm text-blue-700">{message}</p>}
 
-      {/* Türkçe yorum: videoParts türü için parçalı gösterim ve indirme. */}
+      {/* videoParts türü için parçalı gösterim */}
       {asset.type === "videoParts" && (
         <Card className="space-y-6">
-          <h3 className="font-semibold text-slate-900">Video Parçaları</h3>
-
-          {/* Metin */}
+          {/* 1. Üretilen Görseller */}
           <div>
-            <h4 className="font-medium text-slate-900">Metin</h4>
-            <div className="mt-2 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-800">
-              {asset.body?.text?.hook && <p className="mb-2 font-semibold">{asset.body.text.hook}</p>}
-              {Array.isArray(asset.body?.text?.bullets) && asset.body.text.bullets.length > 0 && (
-                <ul className="mb-2 list-disc pl-5">
-                  {asset.body.text.bullets.map((b, i) => (
-                    <li key={i}>{b}</li>
-                  ))}
-                </ul>
-              )}
-              {asset.body?.text?.text && <p className="whitespace-pre-wrap">{asset.body.text.text}</p>}
-              {asset.body?.text?.cta && <p className="mt-2 italic text-slate-700">{asset.body.text.cta}</p>}
-              {asset.body?.text?.disclaimer && (
-                <p className="mt-2 text-xs text-slate-500">{asset.body.text.disclaimer}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Görseller */}
-          <div>
-            <h4 className="font-medium text-slate-900">Görseller ({asset.body?.format})</h4>
+            <h4 className="font-medium text-slate-900 mb-2">Üretilen Görseller ({asset.body?.format})</h4>
             <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(asset.body?.images || []).map((img, i) => (
                 <div key={i} className="rounded-md border border-slate-200 bg-white p-2">
                   {img?.url ? (
-                    <img src={img.url} alt={`Sahne ${img.sceneIndex || i + 1}`} className="h-48 w-full rounded object-cover" />
+                    <div>
+                      <img
+                        src={img.url}
+                        alt={`Sahne ${img.sceneIndex || i + 1}`}
+                        className="h-48 w-full rounded object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => {
+                          const imgUrl = img.url.startsWith("http") || img.url.startsWith("data:") ? img.url : `/api/media/${asset.id}?image=${i}`;
+                          setViewerSrc(imgUrl);
+                          setViewerAlt(`Sahne ${img.sceneIndex || i + 1}`);
+                          setViewerOpen(true);
+                        }}
+                      />
+                      {img?.prompt && (
+                        <p className="mt-2 line-clamp-2 text-xs text-slate-500">Prompt: {img.prompt}</p>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex h-48 w-full items-center justify-center rounded bg-slate-50 text-xs text-slate-500">
                       Görsel yok
@@ -234,26 +231,96 @@ export default function AssetDetailPage() {
             </div>
           </div>
 
-          {/* Ses */}
+          {/* 2. Görseli Üreten Prompt */}
+          {asset.body?.images?.[0]?.prompt && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt</h4>
+              <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                <p className="whitespace-pre-wrap">{asset.body.images[0].prompt}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Konu Başlık Yazısı */}
           <div>
-            <h4 className="font-medium text-slate-900">Ses</h4>
+            <h4 className="font-medium text-slate-900 mb-2">Konu Başlık</h4>
+            <p className="mt-1 text-sm text-slate-700 font-medium">{asset.title}</p>
+          </div>
+
+          {/* 4. Konu İçerik Yazısı */}
+          {asset.body?.text?.text && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Konu İçerik Açıklaması</h4>
+              <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                <p className="whitespace-pre-wrap">{asset.body.text.text}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Konu ile Alakalı Etiketler */}
+          {((asset.body?.tags && asset.body.tags.length > 0) || (asset.cdnaSnapshot?.styleGuide?.visualTags && asset.cdnaSnapshot.styleGuide.visualTags.length > 0)) && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Etiketler</h4>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(asset.body?.tags || asset.cdnaSnapshot?.styleGuide?.visualTags || []).map((t, i) => (
+                  <span key={i} className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">#{t.replace(/^#/, "")}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 6. Final Son Paylaşıma Hazır Metin */}
+          <div>
+            <h4 className="font-medium text-slate-900 mb-2">Paylaşıma Hazır Metin</h4>
+            <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-slate-800">
+              {asset.body?.text?.hook && <p className="font-semibold mb-2 text-blue-900">{asset.body.text.hook}</p>}
+              {Array.isArray(asset.body?.text?.bullets) && asset.body.text.bullets.length > 0 && (
+                <ul className="mb-2 list-disc pl-5">
+                  {asset.body.text.bullets.map((b, i) => (
+                    <li key={i}>{b}</li>
+                  ))}
+                </ul>
+              )}
+              {asset.body?.text?.text && <p className="whitespace-pre-wrap mb-2">{asset.body.text.text}</p>}
+              {asset.body?.text?.cta && <p className="font-semibold mt-2 text-blue-900">{asset.body.text.cta}</p>}
+              {asset.body?.text?.disclaimer && (
+                <p className="text-xs text-slate-500 italic mt-2">{asset.body.text.disclaimer}</p>
+              )}
+            </div>
+          </div>
+
+          {/* 7. Resmi İndir Butonu */}
+          {asset.body?.images && asset.body.images.length > 0 && asset.body.images[0]?.url && (
+            <div className="flex gap-2 flex-wrap">
+              <a href={asset.body.images[0].url} download>
+                <Button variant="secondary">Görseli İndir</Button>
+              </a>
+            </div>
+          )}
+
+          {/* 8. Ses, Ses Dinleme Player ve Ses İndir Butonu */}
+          <div>
+            <h4 className="font-medium text-slate-900 mb-2">Ses</h4>
             <div className="mt-2 rounded-md border border-slate-200 bg-white p-3">
               {asset.body?.audio?.audioUrl ? (
-                <audio src={asset.body.audio.audioUrl} controls className="w-full" />
+                <div className="space-y-3">
+                  <audio src={asset.body.audio.audioUrl} controls className="w-full" />
+                  <div>
+                    <a href={asset.body.audio.audioUrl} download>
+                      <Button variant="secondary">Sesi İndir</Button>
+                    </a>
+                  </div>
+                  {asset.body?.audio?.transcript && (
+                    <div className="mt-3 rounded-md bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-700 mb-1">Transkript:</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{asset.body.audio.transcript}</p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-600">
                   Ses dosyası üretilmedi.
                 </div>
-              )}
-              {asset.body?.audio?.audioUrl && (
-                <div className="mt-2">
-                  <a href={asset.body.audio.audioUrl} download className="text-xs text-slate-700 underline">
-                    İndir (MP3)
-                  </a>
-                </div>
-              )}
-              {asset.body?.audio?.transcript && (
-                <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{asset.body.audio.transcript}</p>
               )}
             </div>
           </div>
@@ -281,50 +348,117 @@ export default function AssetDetailPage() {
         </Card>
       )}
 
-      {/* Türkçe yorum: Görsel preview; imageUrl varsa gösterilir, yoksa placeholder. */}
-      {(asset.type === "image916" || asset.type === "image169") && (
-        <Card className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900">Görsel</h3>
-            {imageUrl && (
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={handleGenerateAlternative}
-                  disabled={reviseLoading}
-                  className="text-xs"
-                >
-                  {reviseLoading ? "Üretiliyor..." : "Alternatif Üret"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowReviseModal(true)}
-                  disabled={reviseLoading}
-                  className="text-xs"
-                >
-                  Revize Et
-                </Button>
+      {/* imagePost veya image916/image169 için görsel gösterimi */}
+      {(asset.type === "imagePost" || asset.type === "image916" || asset.type === "image169") && (
+        <Card className="space-y-6">
+          {/* 1. Üretilen Görsel */}
+          <div>
+            <h4 className="font-medium text-slate-900 mb-2">Üretilen Görsel</h4>
+            {imageUrl ? (
+              <div className="mt-2">
+                <img
+                  src={imageUrl.startsWith("data:") || imageUrl.startsWith("http") ? imageUrl : `/api/media/${asset.id}`}
+                  alt={asset.title}
+                  className="w-full rounded-md border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => {
+                    const imgUrl = imageUrl.startsWith("data:") || imageUrl.startsWith("http") ? imageUrl : `/api/media/${asset.id}`;
+                    setViewerSrc(imgUrl);
+                    setViewerAlt(asset.title || "");
+                    setViewerOpen(true);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-8">
+                <p className="text-sm font-medium text-slate-600">Görsel üretilemedi</p>
+                <p className="mt-2 text-xs text-slate-500">API key eksik veya üretim başarısız oldu</p>
               </div>
             )}
           </div>
-          {imageUrl && (imageUrl.startsWith("data:") || imageUrl.startsWith("http")) ? (
-            <img src={imageUrl} alt={asset.title} className="w-full rounded-md border border-slate-200" />
-          ) : imageUrl ? (
-            <img src={`/api/media/${asset.id}`} alt={asset.title} className="w-full rounded-md border border-slate-200" />
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-8">
-              <p className="text-sm font-medium text-slate-600">Görsel üretilemedi</p>
-              <p className="mt-2 text-xs text-slate-500">API key eksik veya üretim başarısız oldu</p>
-              {asset.body?.usedPrompt && (
-                <div className="mt-4 w-full rounded-md bg-white p-3 text-left">
-                  <p className="text-xs font-medium text-slate-700">Kullanılan Prompt:</p>
-                  <p className="mt-1 text-xs text-slate-600">{asset.body.usedPrompt}</p>
-                </div>
-              )}
+
+          {/* 2. Görseli Üreten Prompt */}
+          {(asset.body?.image?.usedPrompt || asset.body?.image?.prompt || asset.body?.usedPrompt) && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt</h4>
+              <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                <p className="whitespace-pre-wrap">{asset.body?.image?.usedPrompt || asset.body?.image?.prompt || asset.body?.usedPrompt || "(Prompt yok)"}</p>
+              </div>
             </div>
           )}
-          {asset.body?.usedPrompt && imageUrl && (
-            <p className="text-xs text-slate-500">Prompt: {asset.body.usedPrompt}</p>
+
+          {/* 3. Konu Başlık Yazısı */}
+          <div>
+            <h4 className="font-medium text-slate-900 mb-2">Konu Başlık</h4>
+            <p className="mt-1 text-sm text-slate-700 font-medium">{asset.title}</p>
+          </div>
+
+          {/* 4. Konu İçerik Yazısı */}
+          {asset.body?.text?.text && typeof asset.body.text.text === "string" && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Konu İçerik Açıklaması</h4>
+              <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                <p className="whitespace-pre-wrap">{asset.body.text.text}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Konu ile Alakalı Etiketler */}
+          {((asset.body?.tags && asset.body.tags.length > 0) || (asset.cdnaSnapshot?.styleGuide?.visualTags && asset.cdnaSnapshot.styleGuide.visualTags.length > 0)) && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Etiketler</h4>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(asset.body?.tags || asset.cdnaSnapshot?.styleGuide?.visualTags || []).map((t, i) => (
+                  <span key={i} className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">#{t.replace(/^#/, "")}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 6. Final Son Paylaşıma Hazır Metin */}
+          {asset.body?.text && typeof asset.body.text === "object" && (
+            <div>
+              <h4 className="font-medium text-slate-900 mb-2">Paylaşıma Hazır Metin</h4>
+              <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-slate-800">
+                {asset.body.text.hook && <p className="font-semibold mb-2 text-blue-900">{asset.body.text.hook}</p>}
+                {Array.isArray(asset.body.text.bullets) && asset.body.text.bullets.length > 0 && (
+                  <ul className="list-disc list-inside space-y-1 mb-2">
+                    {asset.body.text.bullets.map((bullet, idx) => (
+                      <li key={idx}>{bullet}</li>
+                    ))}
+                  </ul>
+                )}
+                {asset.body.text.text && <p className="whitespace-pre-wrap mb-2">{asset.body.text.text}</p>}
+                {asset.body.text.cta && <p className="font-semibold mt-2 text-blue-900">{asset.body.text.cta}</p>}
+                {asset.body.text.disclaimer && <p className="text-xs text-slate-500 italic mt-2">{asset.body.text.disclaimer}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* 7. Resmi İndir Butonu */}
+          {imageUrl && (
+            <div className="flex gap-2 flex-wrap">
+              <a href={imageUrl.startsWith("data:") || imageUrl.startsWith("http") ? imageUrl : `/api/media/${asset.id}`} download>
+                <Button variant="secondary">Görseli İndir</Button>
+              </a>
+              {(asset.type === "image916" || asset.type === "image169") && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleGenerateAlternative}
+                    disabled={reviseLoading}
+                  >
+                    {reviseLoading ? "Üretiliyor..." : "Alternatif Üret"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowReviseModal(true)}
+                    disabled={reviseLoading}
+                  >
+                    Revize Et
+                  </Button>
+                </>
+              )}
+            </div>
           )}
         </Card>
       )}
@@ -481,6 +615,9 @@ export default function AssetDetailPage() {
           </pre>
         )}
       </Card>
+
+      {/* Full-screen Image Viewer Modal */}
+      <ImageViewerModal open={viewerOpen} src={viewerSrc} alt={viewerAlt} onClose={() => setViewerOpen(false)} />
     </div>
   );
 }

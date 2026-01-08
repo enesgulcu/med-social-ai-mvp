@@ -5,6 +5,7 @@ import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import Button from "../../../components/Button";
 import Select from "../../../components/Select";
+import ImageViewerModal from "../../../components/ImageViewerModal";
 import { useAssetStore } from "../../../features/assets/store";
 
 // Türkçe yorum: Asset listesi; filtreleme ile type ve status kontrolü. API başarısız olursa store'daki son veriyi gösterir.
@@ -14,6 +15,9 @@ export default function AssetsPage() {
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState(null);
+  const [viewerAlt, setViewerAlt] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -133,7 +137,12 @@ export default function AssetsPage() {
                 <img
                   src={thumbUrl}
                   alt={asset.title}
-                  className="h-40 w-full rounded-md border border-slate-200 object-cover"
+                  className="h-40 w-full rounded-md border border-slate-200 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => {
+                    setViewerSrc(thumbUrl);
+                    setViewerAlt(asset.title || "");
+                    setViewerOpen(true);
+                  }}
                 />
               )}
               <div className="flex items-center justify-between">
@@ -156,6 +165,9 @@ export default function AssetsPage() {
           );
         })}
       </div>
+
+      {/* Full-screen Image Viewer Modal */}
+      <ImageViewerModal open={viewerOpen} src={viewerSrc} alt={viewerAlt} onClose={() => setViewerOpen(false)} />
     </div>
   );
 }

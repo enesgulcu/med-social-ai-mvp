@@ -4,7 +4,7 @@ import React from "react";
 import Textarea from "../../components/Textarea";
 import { useOnboardingStore } from "./store";
 
-// Türkçe yorum: Hedefler adımı; doktorun içerik amaçlarını netleştirir.
+// Türkçe yorum: Hedefler adımı; kullanıcının içerik amaçlarını netleştirir.
 export default function StepGoals({ register, errors }) {
   const { data, updateData } = useOnboardingStore();
   const [goalsValue, setGoalsValue] = React.useState(data.goals || "");
@@ -33,7 +33,7 @@ export default function StepGoals({ register, errors }) {
       </div>
       <Textarea
         label="Hedefler"
-        placeholder="Örn: Bilgilendirme, hasta eğitimi, kliniğe yönlendirme"
+        placeholder="Örn: Bilgilendirme, müşteri eğitimi, marka bilinirliği, satış artırma"
         rows={4}
         value={goalsValue}
         onChange={handleChange}

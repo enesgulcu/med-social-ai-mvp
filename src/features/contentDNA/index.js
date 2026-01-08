@@ -17,15 +17,15 @@ export function buildGuardrails(preferences = {}) {
     forbiddenClaims: RISKY_PHRASES,
     sensitiveAreas: [],
     allowedLanguageLevel: "simple",
-    disclaimers: ["Bu içerik bilgilendirme amaçlıdır, tanı ve tedavi için doktorunuza başvurun."],
+    disclaimers: ["Bu içerik bilgilendirme amaçlıdır; profesyonel danışmanlık yerine geçmez."],
     preferences,
   };
 }
 
-export function generateTopics(goals = "", specialty = "") {
-  // Türkçe yorum: Branş ve hedeflerden türetilen basit konu listesi; fallback.
+export function generateTopics(goals = "", specialtyOrSector = "") {
+  // Türkçe yorum: Sektör/branş ve hedeflerden türetilen basit konu listesi; fallback.
   const base = SAFE_TOPICS.slice(0, 3);
-  if (specialty) base.push(`branş:${specialty}`);
+  if (specialtyOrSector) base.push(`sector:${specialtyOrSector}`);
   if (goals) base.push(`hedef:${goals.slice(0, 20)}`);
   return base;
 }
@@ -49,9 +49,9 @@ function createContentDNAFallback(payload) {
       writingStyle: "kısa ve net",
       do: ["bilgilendirici ol", "güven ver", "basit dil kullan"],
       dont: ["teşhis vaat etme", "kesin sonuç vaat etme"],
-      ctaStyle: "randevu için danışın",
+      ctaStyle: "daha fazla bilgi için iletişime geçin",
       disclaimerPolicy: "always",
-      visualStyle: "stylized-medical",
+      visualStyle: "stylized",
     },
   };
 }

@@ -12,7 +12,7 @@ export default function LoginPage() {
         <div className="space-y-2 text-center">
           <p className="text-xs uppercase tracking-[0.18em] text-blue-600">MedSocial AI</p>
           <h1 className="text-2xl font-semibold text-slate-900">Giriş yap</h1>
-          <p className="text-sm text-slate-600">Doktor paneline erişmek için email ve parolanızı girin.</p>
+          <p className="text-sm text-slate-600">Hesabınıza giriş yapmak için email ve parolanızı girin.</p>
         </div>
         <LoginForm />
         <p className="text-sm text-slate-600 text-center">

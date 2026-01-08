@@ -4,6 +4,7 @@
 import prisma from "../../../lib/prisma";
 import { generateText, generateImage, generateAudio, generateVideo } from "./adapters";
 import { riskCheck, appendDisclaimer } from "../../governance";
+import { getActiveDynamicProfile } from "../../../lib/dynamicProfiles";
 
 // Türkçe yorum: Debug logları geliştirme sırasında teşhis için kullanılır.
 // Prod ortamında istenirse STUDIO_DEBUG=0 ile kapatılabilir.
@@ -58,11 +59,32 @@ async function logUsage(userId, actionType, provider, success, durationMs, error
  */
 async function fetchContentDNA(userId) {
   try {
+    // 1) Try to fetch per-user DynamicProfile (multi-sector, user-configured preferences)
+    const dynamicProfile = await getActiveDynamicProfile(userId);
+
+    // 2) Fetch existing ContentDNA (legacy/AI-generated)
     const cdna = await prisma.contentDNA.findFirst({
       where: { userId },
       orderBy: { updatedAt: "desc" },
     });
-    return cdna ? { ...cdna, styleGuide: cdna.styleGuide || {}, guardrails: cdna.guardrails || {} } : null;
+
+    // 3) Merge priority: DynamicProfile.preferences override ContentDNA values when present
+    let merged = null;
+    if (dynamicProfile && dynamicProfile.preferences) {
+      const prefs = dynamicProfile.preferences || {};
+      merged = {
+        normalizedTone: prefs.normalizedTone || (cdna ? cdna.normalizedTone : undefined) || "",
+        styleGuide: { ...(cdna?.styleGuide || {}), ...(prefs.styleGuide || {}) },
+        guardrails: { ...(cdna?.guardrails || {}), ...(prefs.guardrails || {}) },
+        topics: prefs.topics || (cdna ? cdna.topics : []),
+      };
+    } else if (cdna) {
+      merged = { ...cdna, styleGuide: cdna.styleGuide || {}, guardrails: cdna.guardrails || {} };
+    } else {
+      merged = null;
+    }
+
+    return merged;
   } catch (error) {
     console.error("ContentDNA fetch hatası:", error);
     return null;

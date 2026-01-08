@@ -12,6 +12,7 @@ export default function StepToneAI({ register, errors = {} }) {
   const [toneAnswers, setToneAnswers] = useState({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [images, setImages] = useState(data.visualPreferences?.imageUrls || []);
+  const [toneQuestions, setToneQuestions] = useState(data.toneQuestions || TONE_QUESTIONS);
 
   // Mevcut toneDetails varsa, soruları atla ve direkt analiz sonucunu göster
   React.useEffect(() => {
@@ -20,7 +21,7 @@ export default function StepToneAI({ register, errors = {} }) {
         toneAnalysis: data.toneDetails,
         toneStep: 4,
       });
-      setCurrentQuestionIndex(TONE_QUESTIONS.length); // Tüm soruları atla
+      setCurrentQuestionIndex(toneQuestions.length); // Tüm soruları atla
     }
   }, [data.toneDetails, aiState.toneAnalysis, updateAiState]);
 
@@ -34,10 +35,21 @@ export default function StepToneAI({ register, errors = {} }) {
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
 
+  // Veritabanından yüklenen sorular varsa kullan, yoksa statik soruları kullan
+  React.useEffect(() => {
+    if (data.toneQuestions && Array.isArray(data.toneQuestions) && data.toneQuestions.length > 0) {
+      setToneQuestions(data.toneQuestions);
+    } else if (!data.toneQuestions && TONE_QUESTIONS.length > 0) {
+      // İlk kez oluşturuluyorsa statik soruları kaydet
+      setToneQuestions(TONE_QUESTIONS);
+      updateData({ toneQuestions: TONE_QUESTIONS });
+    }
+  }, [data.toneQuestions, updateData]);
+
   // Mevcut soruyu al (filtreleme ile)
   const currentQuestion = useMemo(() => {
-    if (currentQuestionIndex >= TONE_QUESTIONS.length) return null;
-    const question = TONE_QUESTIONS[currentQuestionIndex];
+    if (currentQuestionIndex >= toneQuestions.length) return null;
+    const question = toneQuestions[currentQuestionIndex];
     
     // Filtreleme varsa uygula
     if (question.filters) {
@@ -67,15 +79,15 @@ export default function StepToneAI({ register, errors = {} }) {
 
   // Tüm sorular cevaplandı mı?
   const allQuestionsAnswered = useMemo(() => {
-    return TONE_QUESTIONS.every((q, idx) => {
+    return toneQuestions.every((q, idx) => {
       const answerKey = `toneQuestion${idx + 1}`;
       return toneAnswers[answerKey] && toneAnswers[answerKey].trim().length > 0;
     });
-  }, [toneAnswers]);
+  }, [toneAnswers, toneQuestions]);
 
   // Final analiz yap
   React.useEffect(() => {
-    if (allQuestionsAnswered && currentQuestionIndex >= TONE_QUESTIONS.length) {
+    if (allQuestionsAnswered && currentQuestionIndex >= toneQuestions.length) {
       const analysis = analyzeToneAnswers(toneAnswers);
       updateAiState({
         toneAnalysis: analysis,
@@ -86,7 +98,7 @@ export default function StepToneAI({ register, errors = {} }) {
         toneDetails: analysis,
       });
     }
-  }, [allQuestionsAnswered, currentQuestionIndex, toneAnswers, updateAiState, updateData]);
+  }, [allQuestionsAnswered, currentQuestionIndex, toneAnswers, toneQuestions, updateAiState, updateData]);
 
   const handleToneAnswer = (answer) => {
     const answerKey = `toneQuestion${currentQuestionIndex + 1}`;
@@ -94,7 +106,7 @@ export default function StepToneAI({ register, errors = {} }) {
     setToneAnswers(newAnswers);
 
     // Sonraki soruya geç
-    if (currentQuestionIndex < TONE_QUESTIONS.length - 1) {
+    if (currentQuestionIndex < toneQuestions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       // Tüm sorular cevaplandı, final analiz
@@ -210,11 +222,11 @@ export default function StepToneAI({ register, errors = {} }) {
       </div>
 
       {/* Statik Sorular */}
-      {currentQuestion && currentQuestionIndex < TONE_QUESTIONS.length && (
+      {currentQuestion && currentQuestionIndex < toneQuestions.length && (
         <div className="space-y-4 p-4 bg-slate-50 rounded-md border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-1 rounded">
-              Soru {currentQuestionIndex + 1} / {TONE_QUESTIONS.length}
+              Soru {currentQuestionIndex + 1} / {toneQuestions.length}
             </span>
           </div>
           <p className="font-medium text-slate-900">{currentQuestion.question}</p>

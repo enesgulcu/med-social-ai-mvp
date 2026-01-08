@@ -1,76 +1,86 @@
 // Türkçe yorum: Onboarding için statik sorular ve seçenekler; dinamik filtreleme desteği ile.
 
-// Branş önerileri
-export const SPECIALTY_SUGGESTIONS = [
-  "Kardiyoloji",
-  "Dermatoloji",
-  "Ortopedi",
-  "Nöroloji",
-  "Psikiyatri",
-  "Gastroenteroloji",
-  "Endokrinoloji",
-  "Göğüs Hastalıkları",
-  "Üroloji",
-  "Kadın Doğum",
+// Sektör önerileri (genel, sektör-agnostik)
+export const SECTOR_SUGGESTIONS = [
+  "Sağlık ve Wellness",
+  "Perakende",
+  "Finans",
+  "Eğitim",
+  "SaaS / Teknoloji",
+  "Konaklama / Otelcilik",
+  "E-ticaret",
+  "Üretim",
+  "Hukuk",
+  "STK / Kar Amacı Gütmeyen",
 ];
 
-// Hedef kitle soruları
-export const AUDIENCE_QUESTIONS = [
-  {
-    id: "age",
-    question: "Hedef kitlenizin yaş aralığı nedir?",
-    type: "text",
-    placeholder: "Örn: 30-50",
-    validation: {
-      pattern: /^\d+-\d+$/,
-      message: "Lütfen geçerli bir yaş aralığı girin (örn: 30-50)",
+// Hedef kitle soruları - sektöre göre dinamik oluşturulabilir
+export function getAudienceQuestions(sector) {
+  // Basit statik yapı; AI endpoint ile genişletilebilir
+  return [
+    {
+      id: "age",
+      question: "Hizmet verdiğiniz hedef kitlenin yaş aralığı nedir?",
+      type: "text",
+      placeholder: "Örn: 30-50",
+      validation: {
+        pattern: /^\d+-\d+$/,
+        message: "Lütfen geçerli bir yaş aralığı girin (örn: 30-50)",
+      },
     },
-  },
-  {
-    id: "condition",
-    question: "Odaklanmak istediğiniz hastalık veya durum nedir?",
-    type: "text",
-    placeholder: "Örn: Hipertansiyon, Diyabet, Migren",
-  },
-  {
-    id: "geography",
-    question: "Hedef kitleniz hangi bölgede?",
-    type: "text",
-    placeholder: "Örn: İstanbul, Türkiye geneli, Anadolu",
-  },
-];
+    {
+      id: "topic",
+      question: sector
+        ? `${sector} sektöründe hangi konularda veya alanlarda hizmet veriyorsunuz?`
+        : "Hangi konularda/alanlarda hizmet veriyorsunuz?",
+      type: "text",
+      placeholder: "Örn: Kurumsal eğitim, Öğrenci sınav hazırlığı, Bireysel ders",
+    },
+    {
+      id: "geography",
+      question: "Hizmetlerinizi hangi coğrafi bölgelerde sunuyorsunuz?",
+      type: "text",
+      placeholder: "Örn: İstanbul, Türkiye geneli, Online, Yurtdışı",
+    },
+  ];
+}
 
-// Hedef kitle önerileri (branşa göre)
-export const AUDIENCE_SUGGESTIONS_BY_SPECIALTY = {
-  Kardiyoloji: [
-    "30-60 yaş hipertansiyon hastaları",
-    "50+ yaş kalp sağlığı bilinçlendirme",
-    "Aile öyküsü olan genç yetişkinler",
+// Hedef kitle önerileri (sektöre göre)
+export const AUDIENCE_SUGGESTIONS_BY_SECTOR = {
+  "Sağlık": [
+    "30-60 yaş sağlık ve wellness hizmeti kullanıcıları",
+    "Kronik durumlarla yaşayan yetişkinler",
+    "Genel sağlık ve önleme bilinci olanlar",
   ],
-  Dermatoloji: [
-    "18-40 yaş akne problemi olanlar",
-    "40+ yaş cilt yaşlanması endişesi olanlar",
-    "Her yaş güneş koruması bilinçlendirme",
+  "Sağlık ve Wellness": [
+    "30-60 yaş sağlık ve wellness hizmeti kullanıcıları",
+    "Kronik durumlarla yaşayan yetişkinler",
+    "Genel sağlık ve önleme bilinci olanlar",
   ],
-  Ortopedi: [
-    "40+ yaş eklem ağrısı yaşayanlar",
-    "Spor yaralanması riski olanlar",
-    "Yaşlılarda düşme önleme",
+  "Perakende": [
+    "18-35 yaş düzenli online alışveriş yapanlar",
+    "Sadakat programı kullanıcıları",
+    "Mağaza promosyonlarına ilgi duyanlar",
   ],
-  Nöroloji: [
-    "20-50 yaş migren hastaları",
-    "50+ yaş unutkanlık endişesi olanlar",
-    "Epilepsi hastaları ve aileleri",
+  "Finans": [
+    "Genç profesyoneller (25-40) yatırım ilgilileri",
+    "Emeklilik planlaması yapan yetişkinler",
+    "KOBİ sahibi işletme sahipleri",
   ],
-  Psikiyatri: [
-    "18-35 yaş anksiyete problemi olanlar",
-    "Depresyon desteği arayanlar",
-    "Stres yönetimi ihtiyacı olanlar",
+  "Eğitim": [
+    "Öğrenciler (18-25)",
+    "Ebeveynler ve eğitimciler",
+    "Yaşam boyu öğrenmeye ilgi duyan yetişkinler",
+  ],
+  "SaaS / Teknoloji": [
+    "Ürün yöneticileri ve geliştiriciler",
+    "Küçük işletme sahipleri teknoloji çözümleri arayanlar",
+    "Teknoloji meraklıları ve erken benimseyenler",
   ],
   default: [
-    "Genel sağlık bilinçlendirme",
-    "Koruyucu hekimlik",
-    "Hasta eğitimi",
+    "Genel hedef kitle",
+    "İlgili demografik ve coğrafi segment",
+    "İlgi ve ihtiyaçlara göre özelleştirilmiş kitle",
   ],
 };
 
@@ -111,15 +121,15 @@ export const TONE_QUESTIONS = [
     question: "Hedef kitlenizle nasıl bir ilişki kurmak istersiniz?",
     type: "select",
     options: [
-      "Doktor-hasta (profesyonel)",
+      "Resmi ve profesyonel",
       "Danışman-arkadaş (samimi)",
-      "Eğitmen-öğrenci (eğitici)",
+      "Eğitici ve öğretici",
     ],
     filters: {
       ifPreviousAnswer: {
         questionId: 1,
         values: ["Uzman ve kanıta dayalı"],
-        showOptions: [0], // "Doktor-hasta (profesyonel)"
+        showOptions: [0], // "Resmi ve profesyonel"
       },
       ifPreviousAnswer2: {
         questionId: 1,
@@ -154,11 +164,11 @@ export function analyzeToneAnswers(answers) {
   const normalizedTone = toneMap[firstAnswer] || "samimi";
 
   const descriptions = {
-    sakin: "Sakin, güven verici ve profesyonel bir dil kullanılır. Hasta endişelerini azaltmaya odaklanır.",
+    sakin: "Sakin, güven verici ve profesyonel bir dil kullanılır. Endişeleri azaltmaya odaklanır.",
     uzman: "Kanıta dayalı, teknik ve profesyonel bir yaklaşım. Uzmanlık vurgulanır.",
-    samimi: "Samimi, anlaşılır ve yakın bir dil. Hasta ile dostane bir ilişki kurulur.",
+    samimi: "Samimi, anlaşılır ve yakın bir dil. Hedef kitle ile dostane bir ilişki kurulur.",
     eğitici: "Detaylı, açıklayıcı ve eğitici bir yaklaşım. Bilgi paylaşımı ön plandadır.",
-    motivasyonel: "Enerjik, destekleyici ve motive edici bir dil. Hasta motivasyonu artırılır.",
+    motivasyonel: "Enerjik, destekleyici ve motive edici bir dil. Motivasyon artırılır.",
   };
 
   const characteristics = {

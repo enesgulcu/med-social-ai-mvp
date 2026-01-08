@@ -31,10 +31,16 @@ export async function callOpenAIChat({ system, user, temperature = 0.7, maxToken
     Authorization: `Bearer ${apiKey}`,
   };
 
+  // Eğer system prompt Türkçe yanıt talimatı içermiyorsa ekle
+  const turkishInstructionRegex = /turkçe|türkçe|yalnızca Türkçe|SADECE Türkçe/i;
+  const finalSystem = system && turkishInstructionRegex.test(system)
+    ? system
+    : (system ? `${system}\n\nLütfen tüm yanıtları yalnızca Türkçe olarak verin.` : 'Lütfen tüm yanıtları yalnızca Türkçe olarak verin.');
+
   const body = {
     model,
     messages: [
-      { role: "system", content: system },
+      { role: "system", content: finalSystem },
       { role: "user", content: user },
     ],
     temperature,

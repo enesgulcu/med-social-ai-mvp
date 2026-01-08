@@ -10,13 +10,15 @@ import LoadingSpinner from "../../../components/LoadingSpinner";
 import { onboardingSchema } from "../../../features/onboarding/schema";
 import { useOnboardingStore } from "../../../features/onboarding/store";
 import StepSpecialtyAI from "../../../features/onboarding/StepSpecialtyAI";
+import StepSectorArea from "../../../features/onboarding/StepSectorArea";
 import StepAudienceAI from "../../../features/onboarding/StepAudienceAI";
 import StepToneAI from "../../../features/onboarding/StepToneAI";
+import StepProductionGuidelines from "../../../features/onboarding/StepProductionGuidelines";
 import StepGoals from "../../../features/onboarding/StepGoals";
 
 // Türkçe yorum: AI destekli onboarding wizard; kullanıcı ile interaktif süreç.
 export default function OnboardingPage() {
-  const { step, setStep, data, updateData, reset, aiState } = useOnboardingStore();
+  const { step, setStep, data, updateData, reset, aiState, updateAiState } = useOnboardingStore();
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -64,7 +66,7 @@ export default function OnboardingPage() {
 
   // Ton adımında: AI analizi tamamlandıysa ama data.tone set edilmemişse, set et
   useEffect(() => {
-    if (step === 2) {
+    if (step === 3) {
       // toneAnalysis varsa ve normalizedTone varsa, data.tone'u set et
       if (aiState.toneAnalysis && aiState.toneAnalysis.normalizedTone && (!data.tone || data.tone.trim().length < 2)) {
         updateData({ tone: aiState.toneAnalysis.normalizedTone });
@@ -85,16 +87,18 @@ export default function OnboardingPage() {
 
   // Goals değeri değiştiğinde form'u güncelle (StepGoals component'inden gelen değişiklikler için)
   useEffect(() => {
-    if (step === 3 && data.goals && methods?.setValue) {
+    if (step === 4 && data.goals && methods?.setValue) {
       methods.setValue("goals", data.goals);
     }
   }, [data.goals, step, methods]);
 
   const steps = useMemo(
     () => [
-      { title: "Branş", Component: StepSpecialtyAI, usesRegister: false },
+      { title: "Sektör", Component: StepSpecialtyAI, usesRegister: false },
+      { title: "Sektör Alt Alanı", Component: StepSectorArea, usesRegister: false },
       { title: "Hedef kitle", Component: StepAudienceAI, usesRegister: false },
       { title: "Ton", Component: StepToneAI, usesRegister: false },
+      { title: "İçerik yönergeleri", Component: StepProductionGuidelines, usesRegister: false },
       { title: "Hedefler", Component: StepGoals, usesRegister: false },
     ],
     []
@@ -107,11 +111,14 @@ export default function OnboardingPage() {
   // Her adımın tamamlanıp tamamlanmadığını kontrol et
   const isStepComplete = useCallback(() => {
     switch (step) {
-      case 0: // Branş
-        return !!(data.specialty && data.specialty.trim().length >= 2);
-      case 1: // Hedef kitle
+      case 0: // Sektör
+        return !!((data.sector && data.sector.trim().length >= 2) || (data.specialty && data.specialty.trim().length >= 2));
+      case 1: // Sektör Alt Alan
+        // Alt alan isteğe bağlı değilse en az 1 karakter ile kabul et
+        return !!(data.sectorArea && data.sectorArea.trim().length >= 1);
+      case 2: // Hedef kitle
         return !!(data.targetAudience && data.targetAudience.trim().length >= 2);
-      case 2: // Ton
+      case 3: // Ton
         // Ton belirlenmişse tamamlanmış sayılır
         if (data.tone && data.tone.trim().length >= 2) {
           return true;
@@ -125,7 +132,9 @@ export default function OnboardingPage() {
           return true;
         }
         return false;
-      case 3: // Hedefler
+      case 4: // İçerik yönergeleri
+        return !!(data.productionGuidelines && data.productionGuidelines.trim().length >= 5);
+      case 5: // Hedefler
         // Store'dan veya form değerlerinden kontrol et
         const goalsValue = data.goals || (methods?.getValues ? methods.getValues("goals") : "");
         return !!(goalsValue && typeof goalsValue === "string" && goalsValue.trim().length >= 2);
@@ -155,7 +164,8 @@ export default function OnboardingPage() {
     // Adım tamamlanmamışsa ilerleme
     if (!isStepComplete()) {
       const stepMessages = [
-        "Lütfen branşınızı seçin veya girin.",
+        "Lütfen sektörünüzü seçin veya girin.",
+        "Lütfen sektörünüz içindeki alt alan veya hizmetinizi belirtin.",
         "Lütfen hedef kitlenizi belirleyin.",
         "Lütfen tüm ton sorularını cevaplayın veya manuel olarak tonunuzu girin.",
         "Lütfen hedeflerinizi girin.",
@@ -166,7 +176,8 @@ export default function OnboardingPage() {
 
     // Türkçe yorum: Her adım için sadece o adımın alanını kontrol eder.
     const stepValidations = [
-      { field: "specialty", message: "Branş gerekli" },
+      { field: "sector", message: "Sektör gerekli" },
+      { field: "sectorArea", message: "Sektör alt alanı gerekli" },
       { field: "targetAudience", message: "Hedef kitle gerekli" },
       { field: "tone", message: "Ton seçin" },
       { field: "goals", message: "Hedef belirtin" },
@@ -192,8 +203,21 @@ export default function OnboardingPage() {
       updateData(validValues);
     }
 
-    // Türkçe yorum: Son adım değilse kaydetmeden ilerler, veri kaybını önler.
+    // Türkçe yorum: Son adım değilse verileri draft olarak kaydet ve ilerle
     if (step < steps.length - 1) {
+      // Draft kayıt (tüm verileri kaydet ama Content DNA oluşturma)
+      try {
+        const currentData = { ...data, ...validValues, _isDraft: true };
+        // Schema validation'ı atla, sadece kaydet
+        await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(currentData),
+        });
+      } catch (error) {
+        console.error("Draft kayıt hatası:", error);
+        // Hata olsa bile ilerlemeye devam et
+      }
       setStep(step + 1);
       return;
     }
@@ -239,7 +263,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Onboarding" subtitle="AI destekli profil oluşturma süreci." />
+      <PageHeader title="Profil Oluşturma" subtitle="AI destekli profil oluşturma süreci." />
       <Card className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -313,7 +337,7 @@ export default function OnboardingPage() {
               {submitting && <LoadingSpinner size="sm" />}
               {submitting ? "Kaydediliyor..." : step === steps.length - 1 ? "Kaydet ve Tamamla" : "İleri"}
             </Button>
-            {!isStepComplete() && step === 2 && (
+            {!isStepComplete() && step === 3 && (
               <div className="text-xs text-slate-500 mt-1 space-y-1">
                 {!data.tone && !aiState.toneAnalysis && aiState.toneStep < 4 && (
                   <p>Lütfen tüm AI sorularını cevaplayın ({aiState.toneStep + 1}/4)</p>

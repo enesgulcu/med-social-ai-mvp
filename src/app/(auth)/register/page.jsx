@@ -12,7 +12,7 @@ export default function RegisterPage() {
         <div className="space-y-2 text-center">
           <p className="text-xs uppercase tracking-[0.18em] text-blue-600">MedSocial AI</p>
           <h1 className="text-2xl font-semibold text-slate-900">Kayıt ol</h1>
-          <p className="text-sm text-slate-600">Doktor profilinizle giriş yapabilmek için hesap oluşturun.</p>
+          <p className="text-sm text-slate-600">Hesabınızı oluşturun ve platforma erişim sağlayın.</p>
         </div>
         <RegisterForm />
         <p className="text-sm text-slate-600 text-center">

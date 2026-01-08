@@ -35,7 +35,7 @@ export default async function DashboardLayout({ children }) {
           <div className="px-5 py-8 space-y-8">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">MedSocial AI</p>
-              <p className="text-sm text-slate-600">Doktorlar için içerik stüdyosu</p>
+              <p className="text-sm text-slate-600">AI destekli içerik stüdyosu</p>
             </div>
             <nav className="space-y-1">
               {navItems.map((item) => (

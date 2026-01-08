@@ -18,12 +18,12 @@ export async function POST(req) {
     const body = await req.json();
     const { step = 0, previousAnswers = {}, specialty = "", targetAudience = "" } = body || {};
 
-    const system = `Sen bir içerik stratejisti ve iletişim uzmanı AI'sın. Doktorların sosyal medya içeriklerinde kullanacakları iletişim tonunu belirlemelerine yardımcı oluyorsun.`;
+    const system = `Sen bir içerik stratejisti ve iletişim uzmanı AI'sın. Kullanıcının sektörüne uygun sosyal medya içeriklerinde kullanılacak iletişim tonunu belirlemelerine yardımcı oluyorsun. Lütfen tüm yanıtları yalnızca Türkçe ver.`;
 
     // Adım bazlı sorular
     let userPrompt = "";
     if (step === 0) {
-      userPrompt = `Bir ${specialty || "doktor"} için sosyal medya içeriklerinin iletişim tonunu belirlemek üzere ilk soruyu hazırla.
+      userPrompt = `Sektöre uygun sosyal medya içerikleri için iletişim tonunu belirlemeye yardımcı olacak ilk soruyu hazırla.
 
 Kullanıcıya şunu sor: İçeriklerinizde nasıl bir dil ve yaklaşım kullanmak istersiniz?
 
@@ -61,7 +61,7 @@ JSON formatında döndür:
 {
   "question": "Hedef kitlenizle nasıl bir ilişki kurmak istersiniz?",
   "type": "select",
-  "options": ["Doktor-hasta (profesyonel)", "Danışman-arkadaş (samimi)", "Eğitmen-öğrenci (eğitici)"],
+  "options": ["Resmi ve profesyonel", "Danışman-arkadaş (samimi)", "Eğitici ve öğretici"],
   "nextStep": 3
 }`;
     } else if (step === 3) {
@@ -83,7 +83,7 @@ JSON formatında döndür:
 
 ${JSON.stringify(previousAnswers, null, 2)}
 
-Branş: ${specialty}
+Sektör: ${specialty}
 Hedef Kitle: ${targetAudience}
 
 JSON formatında döndür:
@@ -148,7 +148,7 @@ export async function PUT(req) {
       });
     }
 
-    const system = `Sen bir görsel analiz uzmanı AI'sın. Doktorların sosyal medya içerikleri için görsel stil tercihlerini analiz ediyorsun.`;
+    const system = `Sen bir görsel analiz uzmanı AI'sın. Kullanıcıların sosyal medya içerikleri için görsel stil tercihlerini analiz ediyorsun.`;
 
     const user = `Aşağıdaki görselleri analiz et ve kullanıcının görsel stil tercihlerini çıkar:
 

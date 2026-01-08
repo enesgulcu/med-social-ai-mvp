@@ -7,7 +7,7 @@ import Button from "../../../components/Button";
 // Türkçe yorum: Üst bar kullanıcı bilgisini ve çıkış butonunu gösterir; diğer bölümler bozulsa bile çalışır.
 export default function Topbar() {
   const { data } = useSession();
-  const name = data?.user?.name || "Doktor";
+  const name = data?.user?.name || "Kullanıcı";
 
   return (
     <div className="flex items-center justify-between border-b border-slate-200/80 bg-white/80 backdrop-blur px-4 py-3">

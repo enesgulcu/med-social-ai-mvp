@@ -18,14 +18,16 @@ export async function POST(req) {
     const body = await req.json();
     const { specialty = "" } = body || {};
 
-    const system = `Sen bir pazarlama ve hasta iletişimi uzmanı AI'sın. Doktorların sosyal medya içerikleri için hedef kitle belirlemesine yardımcı oluyorsun.`;
+    const system = `Sen bir pazarlama ve hedef kitle uzmanısın. Kullanıcının sektörüne uygun hedef kitle soruları ve kısa öneriler üret.`;
 
-    const user = `Bir ${specialty || "doktor"} için sosyal medya içeriklerinin hedef kitlesini belirlemek üzere sorular hazırla.
+    const user = `Sektör: ${specialty || "Genel"}
+
+Bir sağlayıcı/işletme için sosyal medya içeriklerinin hedef kitlesini belirlemek üzere sorular hazırla.
 
 Hedef kitle belirleme için şu konularda sorular oluştur:
 1. Yaş aralığı
-2. Hastalık/durum odaklı hedefleme
-3. Reklam/erişim alanı (lokal, ulusal, vb.)
+2. Sunulan hizmet/ürün odaklı hedefleme
+3. Reklam/erişim alanı (lokal, ulusal, online vb.)
 4. İlgi alanları
 
 Her soru için 3-5 örnek seçenek de sun.
@@ -42,8 +44,8 @@ JSON formatında döndür:
     ...
   ],
   "suggestions": [
-    "30-50 yaş hipertansiyon hastaları",
-    "Genç yetişkinler için sağlık bilgilendirmesi",
+    "25-45 yaş KOBİ sahipleri",
+    "Genç profesyoneller (22-35)",
     ...
   ]
 }`;
@@ -74,9 +76,9 @@ JSON formatında döndür:
         },
         {
           id: "condition",
-          question: "Odaklanmak istediğiniz hastalık veya durum nedir?",
+          question: "Odaklanmak istediğiniz hizmet veya konu nedir?",
           type: "text",
-          placeholder: "Örn: Hipertansiyon, Diyabet, Kronik ağrı",
+          placeholder: "Örn: Ürün lansmanı, Kurumsal eğitim, Kampanya",
         },
         {
           id: "area",
@@ -86,9 +88,9 @@ JSON formatında döndür:
         },
       ],
       suggestions: [
-        `${specialty || "Genel"} hastaları için bilgilendirme`,
-        "Sağlık bilinci yüksek bireyler",
-        "Kronik hastalık yönetimi arayanlar",
+        `${specialty || "Genel"} hedef kitlesi için bilgilendirme`,
+        "İlgilenebilecek yerel müşteriler",
+        "Ürüne/servise ilgi gösteren potansiyel müşteriler",
       ],
     };
 

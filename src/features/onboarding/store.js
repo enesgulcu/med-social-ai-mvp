@@ -5,9 +5,16 @@ export const useOnboardingStore = create((set) => ({
   step: 0,
   data: {
     specialty: "",
+    sector: "",
+    sectorArea: "",
     targetAudience: "",
+    audienceAnswers: {}, // Hedef kitle sorularının cevapları
+    audienceQuestions: null, // AI'dan gelen hedef kitle soruları (bir kez oluşturulur, veritabanında saklanır)
+    audienceSuggestions: null, // AI'dan gelen hedef kitle önerileri (bir kez oluşturulur, veritabanında saklanır)
+    productionGuidelines: "",
     tone: "",
     toneDetails: {}, // AI ton analizi detayları
+    toneQuestions: null, // Ton soruları (bir kez oluşturulur, veritabanında saklanır)
     goals: "",
     visualPreferences: {
       imageUrls: [],
@@ -29,9 +36,15 @@ export const useOnboardingStore = create((set) => ({
       step: 0,
       data: {
         specialty: "",
+        sector: "",
+        sectorArea: "",
         targetAudience: "",
+        audienceAnswers: {},
+        audienceQuestions: null,
+        audienceSuggestions: null,
         tone: "",
         toneDetails: {},
+        toneQuestions: null,
         goals: "",
         visualPreferences: {
           imageUrls: [],

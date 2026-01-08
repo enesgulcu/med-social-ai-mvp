@@ -154,16 +154,16 @@ export async function POST(req) {
       generationIndex = Math.floor(excludeSuggestions.length / 5);
     }
     
-    // Her generation için farklı perspektifler
+    // Her generation için farklı perspektifler (sektör-agnostik)
     const perspectives = [
-      "Klinik ve tıbbi odaklı",
-      "Hasta eğitimi ve bilgilendirme odaklı",
-      "Yaşam tarzı ve önleme odaklı",
-      "Güncel araştırmalar ve yenilikler odaklı",
-      "Pratik uygulamalar ve ipuçları odaklı",
-      "Toplumsal sağlık ve farkındalık odaklı",
-      "Kişiselleştirilmiş yaklaşımlar odaklı",
-      "Multidisipliner ve bütünsel sağlık odaklı",
+      "Uzman/öğretici odaklı",
+      "Satış ve dönüşüm odaklı",
+      "Pratik uygulamalar ve rehberlik odaklı",
+      "Hikaye anlatımı ve marka odaklı",
+      "Kısa eğitim/özet odaklı",
+      "Vaka çalışması ve başarı hikayeleri odaklı",
+      "Topluluk/yerel ilgi odaklı",
+      "Yenilikler ve trendler odaklı",
     ];
     const currentPerspective = perspectives[generationIndex % perspectives.length];
     
@@ -210,7 +210,7 @@ ${otherFields.targetAudience ? `- Hedef Kitle: ${otherFields.targetAudience}` : 
 GÖREV: 5 farklı, yaratıcı ve ilgi çekici konu önerisi üret.
 YAKLAŞIM: ${currentPerspective} bir perspektif kullan.
 FORMAT: Her konu başlık formatında, kısa ve net olmalı (5-10 kelime arası).
-ÖRNEK FORMAT: "Hipertansiyon kontrolü ve yaşam tarzı", "Diyabet yönetimi ipuçları", "Kalp sağlığı için egzersiz"
+ÖRNEK FORMAT: "Dijital pazarlama için 5 ipucu", "Küçük işletmeler için sosyal medya stratejisi", "Ürün lansmanı için kampanya fikirleri"
 Her öneri tek satır, numaralı liste formatında olmalı (1. Örnek, 2. Örnek şeklinde).
 ÖNEMLİ: 
 - Her öneri birbirinden tamamen farklı olmalı, farklı açılardan yaklaşmalı.
@@ -229,9 +229,9 @@ ${otherFields.targetAudience ? `- Hedef Kitle: ${otherFields.targetAudience}` : 
 
 GÖREV: "${otherFields.topic || currentValue}" konusu hakkında 5 farklı, detaylı açıklama önerisi üret.
 YAKLAŞIM: ${currentPerspective} bir perspektif kullan.
-TON: Kullanıcının tercih ettiği ton (${tone || "Profesyonel"}) ve ton özelliklerini (${toneCharacteristics || "Empatik, Açıklayıcı"}) dikkate al.
-FORMAT: Her açıklama 2-4 cümle uzunluğunda, konuyu detaylıca açıklayan bir paragraf olmalı.
-ÖRNEK FORMAT: "Bu konu hakkında temel bilgiler ve pratik öneriler sunuyoruz. Hastaların günlük yaşamlarında uygulayabilecekleri basit yöntemler ve dikkat edilmesi gereken önemli noktalar ele alınmaktadır."
+    TON: Kullanıcının tercih ettiği ton (${tone || "Profesyonel"}) ve ton özelliklerini (${toneCharacteristics || "Açıklayıcı, Net"}) dikkate al.
+    FORMAT: Her açıklama 2-4 cümle uzunluğunda, konuyu detaylıca açıklayan bir paragraf olmalı.
+    ÖRNEK FORMAT: "Bu konu hakkında temel bilgiler ve pratik öneriler sunuyoruz. Hedef kitlenin günlük yaşamında uygulayabileceği basit adımlar ve dikkat edilmesi gereken noktalar ele alınıyor."
 Her öneri tek satır, numaralı liste formatında olmalı (1. Örnek, 2. Örnek şeklinde). Açıklama formatında olmalı, başlık değil.
 ÖNEMLİ: 
 - Her açıklama farklı bir açıdan yaklaşmalı, farklı vurgular yapmalı.
@@ -250,9 +250,9 @@ ${otherFields.targetAudience ? `- Hedef Kitle: ${otherFields.targetAudience}` : 
 
 GÖREV: Bu içerik için 5 farklı amaç önerisi üret.
 YAKLAŞIM: ${currentPerspective} bir perspektif kullan.
-KULLANICI HEDEFLERİ: ${goals || "Bilgilendirme"} - Bu hedeflere uygun amaçlar öner.
-FORMAT: Her öneri 1-3 kelimelik bir amaç ifadesi olmalı.
-ÖRNEK FORMAT: "Bilgilendirme", "Hasta eğitimi", "Farkındalık yaratma", "Randevu yönlendirme", "Güven oluşturma"
+    KULLANICI HEDEFLERİ: ${goals || "Genel"} - Bu hedeflere uygun amaçlar öner.
+    FORMAT: Her öneri 1-3 kelimelik bir amaç ifadesi olmalı.
+    ÖRNEK FORMAT: "Bilgilendirme", "Satış Odaklı", "Lead Oluşturma", "Eğitim", "Marka Bilinirliği"
 Her öneri tek satır, numaralı liste formatında olmalı (1. Örnek, 2. Örnek şeklinde).
 ÖNEMLİ: 
 - Her öneri farklı bir amacı temsil etmeli.
@@ -271,9 +271,9 @@ ${otherFields.purpose ? `- Amaç: ${otherFields.purpose}` : ""}
 
 GÖREV: Bu içerik için 5 farklı, spesifik hedef kitle önerisi üret.
 YAKLAŞIM: ${currentPerspective} bir perspektif kullan.
-GENEL HEDEF KİTLE: ${targetAudience || "Genel"} - Bu genel kitleye uygun, daha spesifik alt gruplar öner.
-FORMAT: Her öneri yaş aralığı, hastalık durumu veya demografik özellik içeren bir hedef kitle tanımı olmalı (5-15 kelime).
-ÖRNEK FORMAT: "30-50 yaş hipertansiyon hastaları", "Genç yetişkinler (18-30 yaş)", "Çocuklu aileler", "Kronik hastalık riski olanlar"
+    GENEL HEDEF KİTLE: ${targetAudience || "Genel"} - Bu genel kitleye uygun, daha spesifik alt gruplar öner.
+    FORMAT: Her öneri yaş aralığı, demografik veya sektörel özellik içeren bir hedef kitle tanımı olmalı (5-15 kelime).
+    ÖRNEK FORMAT: "25-45 yaş KOBİ sahipleri", "Genç profesyoneller (22-35 yaş)", "Ebeveynler ve eğitim odaklı veliler", "Yerel topluluk üyeleri"
 Her öneri tek satır, numaralı liste formatında olmalı (1. Örnek, 2. Örnek şeklinde).
 ÖNEMLİ: 
 - Her öneri farklı bir demografik grubu hedeflemeli.
@@ -305,19 +305,19 @@ Her öneri tek satır, numaralı liste formatında olmalı (1. Örnek, 2. Örnek
 
     const userPrompt = fieldPrompts[field] || `5 farklı örnek üret: ${field}`;
 
-    const system = excludeSuggestions.length > 0
-      ? `Sen bir içerik stratejisti AI'sın. Doktorların sosyal medya içerikleri için öneriler sunuyorsun.
-Kullanıcının onboarding bilgilerini dikkate alarak, özgün ve yaratıcı öneriler üretmelisin.
+        const system = excludeSuggestions.length > 0
+      ? `Sen bir içerik stratejisti AI'sın. Kullanıcının sektörüne uygun sosyal medya içerikleri için öneriler sunuyorsun.
+    Kullanıcının onboarding bilgilerini dikkate alarak, özgün ve yaratıcı öneriler üretmelisin.
 
-⚠️ KRİTİK KURAL: Kullanıcı daha önce ${excludeSuggestions.length} öneri gördü ve beğenmedi. Bu önerilerden KESINLIKLE farklı, tamamen yeni öneriler üretmelisin. 
+    ⚠️ KRİTİK KURAL: Kullanıcı daha önce ${excludeSuggestions.length} öneri gördü ve beğenmedi. Bu önerilerden KESINLIKLE farklı, tamamen yeni öneriler üretmelisin. 
 
-YENİ YAKLAŞIM: Bu sefer ${currentPerspective} bir perspektif kullan. Önceki önerilerden tamamen farklı bir açıdan yaklaş. Aynı kelimeleri, benzer ifadeleri kullanma. Her öneri benzersiz ve yaratıcı olmalı. Her öneri birbirinden de farklı olmalı, farklı açılardan yaklaşmalı.
+    YENİ YAKLAŞIM: Bu sefer ${currentPerspective} bir perspektif kullan. Önceki önerilerden tamamen farklı bir açıdan yaklaş. Aynı kelimeleri, benzer ifadeleri kullanma. Her öneri benzersiz ve yaratıcı olmalı. Her öneri birbirinden de farklı olmalı, farklı açılardan yaklaşmalı.
 
-Her öneri field'ın amacına uygun format ve uzunlukta olmalıdır.`
-      : `Sen bir içerik stratejisti AI'sın. Doktorların sosyal medya içerikleri için öneriler sunuyorsun.
-Kullanıcının onboarding bilgilerini dikkate alarak, özgün ve yaratıcı öneriler üretmelisin.
-Daha önce üretilen içeriklerden farklı olmalısın.
-Her öneri field'ın amacına uygun format ve uzunlukta olmalıdır.`;
+    Her öneri field'ın amacına uygun format ve uzunlukta olmalıdır.`
+      : `Sen bir içerik stratejisti AI'sın. Kullanıcının sektörüne uygun sosyal medya içerikleri için öneriler sunuyorsun.
+    Kullanıcının onboarding bilgilerini dikkate alarak, özgün ve yaratıcı öneriler üretmelisin.
+    Daha önce üretilen içeriklerden farklı olmalısın.
+    Her öneri field'ın amacına uygun format ve uzunlukta olmalıdır.`;
 
     // Ucuz model kullan (gpt-4o-mini - düşük maliyet)
     // callOpenAIChat zaten env'den model alıyor, gpt-4o-mini varsayılan olarak ucuz model

@@ -77,7 +77,7 @@ export async function generateText(input) {
       }
 
       return {
-        title: `Hasta eğitimi - ${input?.specialty || "Genel"}`,
+        title: `Bilgilendirici içerik - ${input?.specialty || "Genel"}`,
         body: {
           hook: aiData.hook || "",
           bullets: Array.isArray(aiData.bullets) ? aiData.bullets : [],
@@ -99,18 +99,18 @@ export async function generateText(input) {
 
   // Türkçe yorum: Mock fallback.
   return {
-    title: "Hasta eğitimi - " + (input?.specialty || "Genel"),
+    title: "Bilgilendirici içerik - " + (input?.specialty || "Genel"),
     body: {
       hook: `Bugün ${input?.topic || "sağlık"} hakkında kısa bilgiler paylaşıyorum.`,
       bullets: [
         "Düzenli kontrollerinizi ihmal etmeyin",
         "Sağlıklı yaşam tarzı benimseyin",
-        "Belirtilerde doktorunuza danışın",
+        "Belirtilerde ilgili uzmana danışın",
       ],
       text: `Bugün ${input?.topic || "sağlık"} hakkında kısa bilgiler paylaşıyorum. Düzenli kontrollerinizi ihmal etmeyin.`,
-      cta: "Randevu için doktorunuza danışın",
-      disclaimer: "Bilgilendirme amaçlıdır; tanı ve tedavi için hekiminize danışın.",
-      voiceScript: `Merhaba. Bugün ${input?.topic || "sağlık"} konusunda birkaç önemli bilgi paylaşmak istiyorum. Öncelikle, düzenli kontrollerinizi asla ihmal etmeyin. İkinci olarak, sağlıklı bir yaşam tarzı benimseyin. Son olarak, herhangi bir belirti görürseniz mutlaka doktorunuza danışın. Randevu almak için doktorunuza ulaşabilirsiniz.`,
+      cta: "Daha fazla bilgi için iletişime geçin",
+      disclaimer: "Bilgilendirme amaçlıdır; profesyonel danışmanlık yerine geçmez.",
+      voiceScript: `Merhaba. Bugün ${input?.topic || "konu"} hakkında birkaç önemli bilgi paylaşmak istiyorum. Öncelikle, düzenli kontrollerinizi veya kontrollerinizi ihmal etmeyin. İkinci olarak, sağlıklı bir yaklaşım benimseyin. Son olarak, herhangi bir belirti veya soru olursa ilgili uzmana danışın.`,
       scriptSentences: [{ t: 0, text: `Bugün ${input?.topic || "sağlık"} hakkında kısa bilgiler paylaşıyorum.` }],
     },
     cdnaSnapshot: input?.contentDNA || baseCdna,

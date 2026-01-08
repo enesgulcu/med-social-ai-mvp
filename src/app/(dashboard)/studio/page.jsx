@@ -23,6 +23,7 @@ export default function StudioPage() {
   const [description, setDescription] = useState("");
   const [purpose, setPurpose] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
+  const [productionGuidelines, setProductionGuidelines] = useState("");
 
   // Format ve diğer ayarlar
   const [format, setFormat] = useState("9:16");
@@ -76,6 +77,28 @@ export default function StudioPage() {
     check();
   }, []);
 
+  // Load onboarding/profile preferences (production guidelines etc.) to influence Studio
+  useEffect(() => {
+    let mounted = true;
+    async function loadOnboarding() {
+      try {
+        const res = await fetch("/api/onboarding/load");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!mounted) return;
+        if (json?.data?.productionGuidelines) {
+          setProductionGuidelines(json.data.productionGuidelines);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadOnboarding();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // AI önerileri üret
   const generateAISuggestions = async (field, generateNew = false, userRequest = "") => {
     setAiLoading(true);
@@ -93,6 +116,7 @@ export default function StudioPage() {
         description,
         purpose,
         targetAudience,
+        productionGuidelines,
       };
 
       // Client-side cache check
@@ -438,7 +462,8 @@ export default function StudioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
-          notes: `${description ? `Açıklama: ${description}. ` : ""}Amaç: ${purpose || "Bilgilendirme"}. Hedef kitle: ${targetAudience || "Genel"}`,
+          notes: `${description ? `Açıklama: ${description}. ` : ""}Amaç: ${purpose || "Genel"}. Hedef kitle: ${targetAudience || "Genel"}`,
+          productionGuidelines: productionGuidelines || undefined,
           format,
           addDisclaimer: true,
           voice,
@@ -501,7 +526,8 @@ export default function StudioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
-          notes: `${description ? `Açıklama: ${description}. ` : ""}Amaç: ${purpose || "Bilgilendirme"}. Hedef kitle: ${targetAudience || "Genel"}`,
+          notes: `${description ? `Açıklama: ${description}. ` : ""}Amaç: ${purpose || "Genel"}. Hedef kitle: ${targetAudience || "Genel"}`,
+          productionGuidelines: productionGuidelines || undefined,
           format,
           addDisclaimer: true,
           voice,
@@ -555,15 +581,15 @@ export default function StudioPage() {
         {renderInputWithAI(
           "topic",
           "1. Konu *",
-          "Örn: Hipertansiyon kontrolü",
+          "Örn: Dijital Pazarlama Eğitimi - Sosyal Medya (İşletmenizin sunduğu hizmetin başlığı/konusu)",
           topic,
           setTopic
         )}
 
         {renderInputWithAI(
           "description",
-          "2. Konunun açıklaması",
-          "Konu hakkında kısa açıklama",
+          "2. Kısa açıklama",
+          "İşletmeniz/servisiniz hakkında kısa açıklama; kimlere yönelik, nasıl sunulduğu (örn: 2-3 cümle)",
           description,
           setDescription,
           "textarea",
@@ -573,15 +599,15 @@ export default function StudioPage() {
         {renderInputWithAI(
           "purpose",
           "3. İçeriğin amacı",
-          "Örn: Bilgilendirme, Hasta eğitimi",
+          "Örn: Bilgilendirme, Satış, Marka bilinirliği (Bu içeriğin işletmeniz için hedefi)",
           purpose,
           setPurpose
         )}
 
         {renderInputWithAI(
           "targetAudience",
-          "4. İçeriğin hedef kitlesi",
-          "Örn: 30-50 yaş hipertansiyon hastaları",
+          "4. Hedef müşteri kitlesi",
+          "Örn: 25-45 yaş KOBİ sahipleri, B2B pazarlama yöneticileri (Hizmet verdiğiniz müşteri segmentleri)",
           targetAudience,
           setTargetAudience
         )}
@@ -730,19 +756,67 @@ export default function StudioPage() {
 
           {/* Görsel Post sonucu */}
           {result.type === "imagePost" && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* 1. Üretilen Görsel */}
               <div>
-                <h4 className="font-medium text-slate-900">Başlık</h4>
-                <p className="mt-1 text-sm text-slate-700 font-medium">{result.title}</p>
+                <h4 className="font-medium text-slate-900 mb-2">Üretilen Görsel</h4>
+                {result.body?.image?.imageUrl ? (
+                  <div className="mt-2">
+                    <img
+                      src={result.body.image.imageUrl}
+                      alt={result.title}
+                      className="w-full rounded-md border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => { setViewerSrc(result.body.image.imageUrl); setViewerAlt(result.title || ""); setViewerOpen(true); }}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-600">
+                    Görsel üretilemedi (API key eksik veya hata oluştu)
+                  </div>
+                )}
+              </div>
 
-                <h4 className="mt-3 font-medium text-slate-900">Kullanılan Prompt</h4>
+              {/* 2. Görseli Üreten Prompt */}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt</h4>
                 <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
                   <p className="whitespace-pre-wrap">{result.body?.image?.usedPrompt || result.body?.image?.prompt || "(Prompt yok)"}</p>
                 </div>
+              </div>
 
-                <h4 className="mt-3 font-medium text-slate-900">Post Metni</h4>
-                <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                  {result.body?.text?.hook && <p className="font-medium mb-2">{result.body.text.hook}</p>}
+              {/* 3. Konu Başlık Yazısı */}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">Konu Başlık</h4>
+                <p className="mt-1 text-sm text-slate-700 font-medium">{result.title}</p>
+              </div>
+
+              {/* 4. Konu İçerik Yazısı */}
+              {result.body?.text?.text && (
+                <div>
+                  <h4 className="font-medium text-slate-900 mb-2">Konu İçerik Açıklaması</h4>
+                  <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="whitespace-pre-wrap">{result.body.text.text}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Konu ile Alakalı Etiketler */}
+              {((result.body?.tags && result.body.tags.length > 0) || (result.cdnaSnapshot?.styleGuide?.visualTags && result.cdnaSnapshot.styleGuide.visualTags.length > 0)) && (
+                <div>
+                  <h4 className="font-medium text-slate-900 mb-2">Etiketler</h4>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(result.body?.tags || result.cdnaSnapshot?.styleGuide?.visualTags || []).map((t, i) => (
+                      <span key={i} className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">#{t.replace(/^#/, "")}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Final Son Paylaşıma Hazır Metin */}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">Paylaşıma Hazır Metin</h4>
+                <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-slate-800">
+                  {result.body?.text?.hook && <p className="font-semibold mb-2 text-blue-900">{result.body.text.hook}</p>}
                   {result.body?.text?.bullets?.length > 0 && (
                     <ul className="list-disc list-inside space-y-1 mb-2">
                       {result.body.text.bullets.map((bullet, idx) => (
@@ -750,83 +824,33 @@ export default function StudioPage() {
                       ))}
                     </ul>
                   )}
-                  {result.body?.text?.text && <p className="whitespace-pre-wrap">{result.body.text.text}</p>}
-                  {result.body?.text?.cta && <p className="font-medium mt-2">{result.body.text.cta}</p>}
-                  {result.body?.text?.disclaimer && <p className="text-xs text-slate-500 italic">{result.body.text.disclaimer}</p>}
-                </div>
-
-                {/* Etiketler */}
-                {((result.body?.tags && result.body.tags.length > 0) || (result.cdnaSnapshot?.styleGuide?.visualTags && result.cdnaSnapshot.styleGuide.visualTags.length > 0)) && (
-                  <div className="mt-3">
-                    <h4 className="font-medium text-slate-900">Etiketler</h4>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(result.body?.tags || result.cdnaSnapshot?.styleGuide?.visualTags || []).map((t, i) => (
-                        <span key={i} className="text-xs bg-slate-100 px-2 py-1 rounded">#{t.replace(/^#/, "")}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Görsel */}
-                <div className="mt-4">
-                  <h4 className="font-medium text-slate-900">Görsel</h4>
-                  {result.body?.image?.imageUrl ? (
-                    <div className="mt-2">
-                      <img
-                        src={result.body.image.imageUrl}
-                        alt={result.title}
-                        className="w-full rounded-md border border-slate-200 cursor-pointer"
-                        onClick={() => { setViewerSrc(result.body.image.imageUrl); setViewerAlt(result.title || ""); setViewerOpen(true); }}
-                      />
-                      <div className="mt-2 flex gap-2">
-                        <a href={result.body.image.imageUrl} download>
-                          <Button variant="secondary">Görseli İndir</Button>
-                        </a>
-                        <Button variant="secondary" onClick={() => handleCreateImagePost(null, true)} disabled={loading}>
-                          Alternatif Üret
-                        </Button>
-                        <Button variant="secondary" onClick={handleCreateImagePost} disabled={loading}>
-                          Tekrar Üret
-                        </Button>
-                        <Button variant="secondary" onClick={() => window.location.href = `/assets/${result.id}`}>
-                          Detay Görüntüle
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-600">
-                      Görsel üretilemedi (API key eksik veya hata oluştu)
-                    </div>
-                  )}
+                  {result.body?.text?.text && <p className="whitespace-pre-wrap mb-2">{result.body.text.text}</p>}
+                  {result.body?.text?.cta && <p className="font-semibold mt-2 text-blue-900">{result.body.text.cta}</p>}
+                  {result.body?.text?.disclaimer && <p className="text-xs text-slate-500 italic mt-2">{result.body.text.disclaimer}</p>}
                 </div>
               </div>
+
+              {/* 7. Resmi İndir Butonu */}
+              {result.body?.image?.imageUrl && (
+                <div className="flex gap-2 flex-wrap">
+                  <a href={result.body.image.imageUrl} download>
+                    <Button variant="secondary">Görseli İndir</Button>
+                  </a>
+                  {/* 9. Alternatif Üret Butonu */}
+                  <Button variant="secondary" onClick={() => handleCreateImagePost(null, true)} disabled={loading}>
+                    Alternatif Üret
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
           {/* Video Post sonucu */}
           {result.type === "videoParts" && (
             <div className="space-y-6">
+              {/* 1. Üretilen Görseller */}
               <div>
-                <h4 className="font-medium text-slate-900">Metin</h4>
-                <div className="mt-2 rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-800">
-                  {result.body?.text?.hook && <p className="mb-2 font-semibold">{result.body.text.hook}</p>}
-                  {Array.isArray(result.body?.text?.bullets) && result.body.text.bullets.length > 0 && (
-                    <ul className="mb-2 list-disc pl-5">
-                      {result.body.text.bullets.map((b, i) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {result.body?.text?.text && <p className="whitespace-pre-wrap">{result.body.text.text}</p>}
-                  {result.body?.text?.cta && <p className="mt-2 italic text-slate-700">{result.body.text.cta}</p>}
-                  {result.body?.text?.disclaimer && (
-                    <p className="mt-2 text-xs text-slate-500">{result.body.text.disclaimer}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-slate-900">Görseller ({result.body?.format})</h4>
+                <h4 className="font-medium text-slate-900 mb-2">Üretilen Görseller ({result.body?.format})</h4>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {(result.body?.images || []).map((img, i) => (
                     <div key={i} className="rounded-md border border-slate-200 bg-white p-2">
@@ -835,60 +859,121 @@ export default function StudioPage() {
                           <img
                             src={img.url}
                             alt={`Sahne ${img.sceneIndex || i + 1}`}
-                            className="h-48 w-full rounded object-cover cursor-pointer"
+                            className="h-48 w-full rounded object-cover cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => { setViewerSrc(img.url); setViewerAlt(`Sahne ${img.sceneIndex || i + 1}`); setViewerOpen(true); }}
                           />
-                          <div className="mt-2 flex items-center gap-2">
-                            <a href={img.url} download>
-                              <Button variant="secondary">İndir</Button>
-                            </a>
-                            <Button variant="secondary" onClick={() => handleCreateVideoPost(null, true)} disabled={loading}>
-                              Alternatif Üret
-                            </Button>
-                          </div>
+                          {img?.prompt && (
+                            <p className="mt-2 line-clamp-2 text-xs text-slate-500">Prompt: {img.prompt}</p>
+                          )}
                         </div>
                       ) : (
                         <div className="flex h-48 w-full items-center justify-center rounded bg-slate-50 text-xs text-slate-500">
                           Görsel yok
                         </div>
                       )}
-                      {img?.prompt && (
-                        <p className="mt-2 line-clamp-3 text-xs text-slate-500">Prompt: {img.prompt}</p>
-                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* 2. Görseli Üreten Prompt (ilk görselin prompt'u) */}
+              {result.body?.images?.[0]?.prompt && (
+                <div>
+                  <h4 className="font-medium text-slate-900 mb-2">Görseli Üreten Prompt</h4>
+                  <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="whitespace-pre-wrap">{result.body.images[0].prompt}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Konu Başlık Yazısı */}
               <div>
-                <h4 className="font-medium text-slate-900">Ses</h4>
+                <h4 className="font-medium text-slate-900 mb-2">Konu Başlık</h4>
+                <p className="mt-1 text-sm text-slate-700 font-medium">{result.title}</p>
+              </div>
+
+              {/* 4. Konu İçerik Yazısı */}
+              {result.body?.text?.text && (
+                <div>
+                  <h4 className="font-medium text-slate-900 mb-2">Konu İçerik Açıklaması</h4>
+                  <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="whitespace-pre-wrap">{result.body.text.text}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Konu ile Alakalı Etiketler */}
+              {((result.body?.tags && result.body.tags.length > 0) || (result.cdnaSnapshot?.styleGuide?.visualTags && result.cdnaSnapshot.styleGuide.visualTags.length > 0)) && (
+                <div>
+                  <h4 className="font-medium text-slate-900 mb-2">Etiketler</h4>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(result.body?.tags || result.cdnaSnapshot?.styleGuide?.visualTags || []).map((t, i) => (
+                      <span key={i} className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">#{t.replace(/^#/, "")}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Final Son Paylaşıma Hazır Metin */}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">Paylaşıma Hazır Metin</h4>
+                <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-slate-800">
+                  {result.body?.text?.hook && <p className="font-semibold mb-2 text-blue-900">{result.body.text.hook}</p>}
+                  {Array.isArray(result.body?.text?.bullets) && result.body.text.bullets.length > 0 && (
+                    <ul className="mb-2 list-disc pl-5">
+                      {result.body.text.bullets.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {result.body?.text?.text && <p className="whitespace-pre-wrap mb-2">{result.body.text.text}</p>}
+                  {result.body?.text?.cta && <p className="font-semibold mt-2 text-blue-900">{result.body.text.cta}</p>}
+                  {result.body?.text?.disclaimer && (
+                    <p className="text-xs text-slate-500 italic mt-2">{result.body.text.disclaimer}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* 7. Resmi İndir Butonu */}
+              {result.body?.images && result.body.images.length > 0 && result.body.images[0]?.url && (
+                <div className="flex gap-2 flex-wrap">
+                  <a href={result.body.images[0].url} download>
+                    <Button variant="secondary">Görseli İndir</Button>
+                  </a>
+                </div>
+              )}
+
+              {/* 8. Ses, Ses Dinleme Player ve Ses İndir Butonu */}
+              <div>
+                <h4 className="font-medium text-slate-900 mb-2">Ses</h4>
                 <div className="mt-2 rounded-md border border-slate-200 bg-white p-3">
                   {result.body?.audio?.audioUrl ? (
-                    <div>
+                    <div className="space-y-3">
                       <audio src={result.body.audio.audioUrl} controls className="w-full" />
-                      <div className="mt-2">
+                      <div>
                         <a href={result.body.audio.audioUrl} download>
                           <Button variant="secondary">Sesi İndir</Button>
                         </a>
                       </div>
+                      {result.body?.audio?.transcript && (
+                        <div className="mt-3 rounded-md bg-slate-50 p-3">
+                          <p className="text-xs font-medium text-slate-700 mb-1">Transkript:</p>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{result.body.audio.transcript}</p>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-600">
                       Ses dosyası üretilmedi.
                     </div>
                   )}
-                  {result.body?.audio?.transcript && (
-                    <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{result.body.audio.transcript}</p>
-                  )}
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => window.location.href = `/assets/${result.id}`}>
-                  Detay Görüntüle
-                </Button>
-                <Button variant="secondary" onClick={handleCreateVideoPost} disabled={loading}>
-                  Tekrar Üret
+              {/* 9. Alternatif Üret Butonu */}
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="secondary" onClick={() => handleCreateVideoPost(null, true)} disabled={loading}>
+                  Alternatif Üret
                 </Button>
               </div>
             </div>

@@ -6,12 +6,12 @@
  * @returns {Object} { system, user }
  */
 export function getContentDNAPrompt(onboardingData) {
-  const system = `Sen bir sağlık içerik stratejisti AI'sın. Doktorların sosyal medya içerik üretimi için Content DNA oluşturuyorsun.
-Çıktı her zaman geçerli JSON olmalı.`;
+  const system = `Sen bir içerik stratejisti AI'sın. Kullanıcının sektörüne uygun Content DNA oluşturuyorsun. Çıktı her zaman geçerli JSON olmalı.`;
 
-  const user = `Aşağıdaki doktor profilinden Content DNA oluştur:
+  const sectorLabel = onboardingData.sector || onboardingData.specialty || "Genel";
+  const user = `Aşağıdaki profil bilgisine göre Content DNA oluştur:
 
-Branş: ${onboardingData.specialty || "Genel"}
+Sektör/Branş: ${sectorLabel}
 Hedef Kitle: ${onboardingData.targetAudience || "Genel halk"}
 Ton: ${onboardingData.tone || "Sakin"}
 Hedefler: ${onboardingData.goals || "Bilgilendirme"}
@@ -23,9 +23,9 @@ Hedefler: ${onboardingData.goals || "Bilgilendirme"}
     "writingStyle": "kısa ve net açıklama",
     "do": ["yapılması gerekenler listesi"],
     "dont": ["yapılmaması gerekenler listesi"],
-    "ctaStyle": "randevu için danışın|daha fazla bilgi için|kontrol yaptırın",
+    "ctaStyle": "harekete geçirici çağrı biçimi",
     "disclaimerPolicy": "always|conditional",
-    "visualStyle": "stylized-medical|minimal-icon|illustrative-medical"
+    "visualStyle": "stil tercihi örn: minimal|illustrative|photoreal"
   },
   "topics": ["konu1", "konu2", "konu3"],
   "guardrails": {
@@ -35,7 +35,7 @@ Hedefler: ${onboardingData.goals || "Bilgilendirme"}
   }
 }
 
-Sağlık içeriği için: teşhis vaadi yok, kesin sonuç yok, yanıltıcı iddia yok. Her zaman "bilgilendirme amaçlıdır" yaklaşımı.`;
+Sektöre göre uygun içerik üret. Yanıltıcı veya yasa dışı iddialardan kaçın. Gerektiğinde disclaimer veya uyarı ekle.`;
 
   return { system, user };
 }
@@ -48,25 +48,24 @@ Sağlık içeriği için: teşhis vaadi yok, kesin sonuç yok, yanıltıcı iddi
  * @returns {Object} { system, user }
  */
 export function getTextGenerationPrompt({ topic, contentDNA }) {
-  const system = `Sen bir doktorun sosyal medya içerik üretici AI'sın. Sağlık içeriği üretiyorsun.
+  const system = `Sen, kullanıcının sektörüne uygun sosyal medya içerikleri üreten bir içerik AI'sısın.
 Kurallar:
-- Teşhis vaadi yok
-- Kesin sonuç vaadi yok
-- Yanıltıcı iddia yok
-- Bilgilendirme amaçlıdır
-- Kısa, net, anlaşılır`;
+- Teşhis/garanti gibi kesin iddialardan kaçın (sektöre göre uygunsuz iddialar yasaktır)
+- Yanıltıcı veya yanlış yönlendirici iddia yok
+- Bilgilendirme veya pazarlama amaçlı içerik üret
+- Kısa, net, anlaşılır ve hedef kitleye uygun ton kullan`;
 
   const styleGuide = contentDNA?.styleGuide || {};
   const guardrails = contentDNA?.guardrails || {};
 
-  const user = `Konu: ${topic || "Genel sağlık bilgisi"}
+  const user = `Konu: ${topic || "Genel konu"}
 
 Content DNA:
 - Ton: ${contentDNA?.normalizedTone || "sakin"}
 - Yazım Stili: ${styleGuide.writingStyle || "kısa ve net"}
 - Yapılacaklar: ${(styleGuide.do || []).join(", ")}
 - Yapılmayacaklar: ${(styleGuide.dont || []).join(", ")}
-- CTA Stili: ${styleGuide.ctaStyle || "randevu için danışın"}
+- CTA Stili: ${styleGuide.ctaStyle || "Harekete geçirici çağrı"}
 - Yasaklı İddialar: ${(guardrails.forbiddenClaims || []).join(", ")}
 
 Şu formatta içerik üret:
@@ -131,7 +130,7 @@ Sadece seslendirme script'ini döndür (JSON değil, düz metin).`;
  * @returns {Object} { system, user }
  */
 export function getGovernanceSemanticPrompt(text, contentDNA) {
-  const system = `Sen bir sağlık içerik güvenlik kontrol AI'sın. Metinlerde riskli dil, teşhis vaadi, kesin sonuç vaadi, yanıltıcı iddia arıyorsun.`;
+  const system = `Sen bir içerik güvenlik kontrol AI'sın. Metinlerde riskli dil, yanıltıcı veya hukuka aykırı iddiaları tespit et ve düzeltme önerileri sun.`;
 
   const guardrails = contentDNA?.guardrails || {};
 
@@ -149,11 +148,8 @@ Yasaklı İddialar: ${(guardrails.forbiddenClaims || []).join(", ")}
 }
 
 Kurallar:
-- Teşhis vaadi varsa: warn
-- Kesin sonuç vaadi varsa: warn
-- Yanıltıcı iddia varsa: warn
-- Yasaklı iddialar varsa: warn
-- Sadece bilgilendirme ise: pass`;
+- Ciddi, yanıltıcı veya hukuka aykırı ifadeler varsa: warn
+- Sadece bilgilendirme veya pazarlama amaçlı, yanlış yönlendirme yoksa: pass`;
 
   return { system, user };
 }

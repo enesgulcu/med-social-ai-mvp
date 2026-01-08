@@ -16,13 +16,13 @@ export async function POST(req) {
   }
 
   try {
-    const system = `Sen bir tıp branş uzmanı AI'sın. Türkiye'deki en popüler ve bilinen tıp branşlarını listeliyorsun.`;
+    const system = `Sen bir sektör uzmanı AI'sın. Türkiye'de öne çıkan sektörleri listeliyorsun. Yanıtları Türkçe ve JSON formatında ver.`;
 
-    const user = `Türkiye'deki en popüler ve bilinen 10 tıp branşını listele. 
-Her branş kısa ve net olmalı (örn: Kardiyoloji, Nöroloji, Ortopedi).
+    const user = `Türkiye'de öne çıkan 10 sektör veya iş alanını listele.
+Her sektör kısa ve net olmalı (örn: E-ticaret, Eğitim, Sağlık).
 Sadece JSON formatında döndür:
 {
-  "suggestions": ["Branş1", "Branş2", ...]
+  "suggestions": ["Sektör1", "Sektör2", ...]
 }`;
 
     const result = await callOpenAIChat({
@@ -39,16 +39,16 @@ Sadece JSON formatında döndür:
 
     // Fallback: En popüler branşlar
     const fallbackSuggestions = [
-      "Kardiyoloji",
-      "Nöroloji",
-      "Ortopedi",
-      "Dahiliye",
-      "Genel Cerrahi",
-      "Kadın Hastalıkları ve Doğum",
-      "Çocuk Sağlığı",
-      "Göz Hastalıkları",
-      "Kulak Burun Boğaz",
-      "Dermatoloji",
+      "Sağlık",
+      "E-ticaret",
+      "Finans",
+      "Eğitim",
+      "Teknoloji / SaaS",
+      "Restoran / Yiyecek",
+      "Konaklama / Turizm",
+      "Hukuk",
+      "Güzellik & Kişisel Bakım",
+      "Emlak",
     ];
 
     return Response.json({ suggestions: fallbackSuggestions, usedMock: !result.ok });
